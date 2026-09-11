@@ -7,6 +7,7 @@ use crate::deadlock::DeadlockChecker;
 use crate::dense_state::DenseState;
 use crate::heuristic::AssignmentHeuristic;
 use crate::macros::MacroEngine;
+use crate::planning::StructuralPlan;
 use crate::transposition::TranspositionTable;
 use crate::zobrist::ZobristKeys;
 
@@ -52,6 +53,7 @@ struct BeamEntry {
     state: DenseState,
     g_cost: u32,
     f_cost: u32,
+    structural_boost: u32,
     history_id: u32,
 }
 
@@ -73,6 +75,7 @@ pub fn beam_search(
     budget: &mut Budget,
     counters: &mut SearchCounters,
     config: &BeamConfig,
+    plan: Option<&StructuralPlan>,
 ) -> BeamResult {
     let init_hash = initial.zobrist_hash(zk);
     let h = heuristic.evaluate(cb, initial, init_hash);
@@ -96,10 +99,16 @@ pub fn beam_search(
     let mut tt = TranspositionTable::new();
     tt.insert(init_hash, 0, 0);
 
+    let init_boost = plan
+        .filter(|p| p.is_active())
+        .map(|p| p.evaluate_state(cb, &initial.box_cells))
+        .unwrap_or(0);
+
     let mut beam = vec![BeamEntry {
         state: initial.clone(),
         g_cost: 0,
         f_cost: h,
+        structural_boost: init_boost,
         history_id: NO_PARENT,
     }];
 
@@ -170,10 +179,16 @@ pub fn beam_search(
                     continue;
                 }
 
+                let boost = plan
+                    .filter(|p| p.is_active())
+                    .map(|p| p.evaluate_state(cb, &succ.state.box_cells))
+                    .unwrap_or(0);
+
                 candidates.push(BeamEntry {
                     state: succ.state,
                     g_cost: g,
                     f_cost: g.saturating_add(h),
+                    structural_boost: boost,
                     history_id: hist_id,
                 });
             }
@@ -182,6 +197,7 @@ pub fn beam_search(
         candidates.sort_by(|a, b| {
             a.f_cost
                 .cmp(&b.f_cost)
+                .then(a.structural_boost.cmp(&b.structural_boost))
                 .then(a.state.moves.cmp(&b.state.moves))
         });
         candidates.truncate(config.beam_width);
@@ -247,6 +263,7 @@ mod tests {
             &mut budget,
             &mut counters,
             &config,
+            None,
         );
         (result, counters)
     }

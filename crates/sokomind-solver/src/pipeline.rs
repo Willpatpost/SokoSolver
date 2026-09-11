@@ -12,6 +12,7 @@ use crate::heuristic::AssignmentHeuristic;
 use crate::improvement;
 use crate::log::PhaseLogger;
 use crate::macros::MacroEngine;
+use crate::planning::StructuralPlan;
 use crate::reachability::find_keeper_path;
 use crate::search::astar::{astar_search, AStarResult};
 use crate::search::beam::{beam_search, BeamConfig, BeamResult};
@@ -96,6 +97,7 @@ pub fn solve(request: &SolverRequest) -> SolverResult {
     let mut heuristic = AssignmentHeuristic::new(&cb);
     let deadlocks = DeadlockChecker::new(&cb);
     let macros = MacroEngine::new(&cb);
+    let plan = StructuralPlan::build(&cb);
     let initial = DenseState::from_initial(&cb);
     let mut budget = Budget::new(&request.limits);
     let mut counters = SearchCounters::default();
@@ -110,6 +112,7 @@ pub fn solve(request: &SolverRequest) -> SolverResult {
         &mut heuristic,
         &deadlocks,
         &macros,
+        &plan,
         &mut budget,
         &mut counters,
         &request.options.mode,
@@ -227,17 +230,18 @@ fn run_search(
     heuristic: &mut AssignmentHeuristic,
     deadlocks: &DeadlockChecker,
     macros: &MacroEngine,
+    plan: &StructuralPlan,
     budget: &mut Budget,
     counters: &mut SearchCounters,
     mode: &SolverMode,
 ) -> SearchOutcome {
     if is_small_puzzle(cb) {
         run_small_puzzle_search(
-            cb, initial, zk, heuristic, deadlocks, macros, budget, counters, mode,
+            cb, initial, zk, heuristic, deadlocks, macros, plan, budget, counters, mode,
         )
     } else {
         run_large_puzzle_search(
-            cb, initial, zk, heuristic, deadlocks, macros, budget, counters, mode,
+            cb, initial, zk, heuristic, deadlocks, macros, plan, budget, counters, mode,
         )
     }
 }
@@ -251,6 +255,7 @@ fn run_small_puzzle_search(
     heuristic: &mut AssignmentHeuristic,
     deadlocks: &DeadlockChecker,
     macros: &MacroEngine,
+    plan: &StructuralPlan,
     budget: &mut Budget,
     counters: &mut SearchCounters,
     mode: &SolverMode,
@@ -265,7 +270,7 @@ fn run_small_puzzle_search(
         AStarResult::BudgetExceeded => {
             heuristic.clear_cache();
             let beam_result = try_beam(
-                cb, initial, zk, heuristic, deadlocks, macros, budget, counters,
+                cb, initial, zk, heuristic, deadlocks, macros, plan, budget, counters,
             );
             if let Some(outcome) = beam_result {
                 return outcome;
@@ -291,12 +296,13 @@ fn run_large_puzzle_search(
     heuristic: &mut AssignmentHeuristic,
     deadlocks: &DeadlockChecker,
     macros: &MacroEngine,
+    plan: &StructuralPlan,
     budget: &mut Budget,
     counters: &mut SearchCounters,
     mode: &SolverMode,
 ) -> SearchOutcome {
     let beam_result = try_beam(
-        cb, initial, zk, heuristic, deadlocks, macros, budget, counters,
+        cb, initial, zk, heuristic, deadlocks, macros, plan, budget, counters,
     );
     if let Some(outcome) = beam_result {
         if let SearchOutcome::Solved { ref pushes, .. } = outcome {
@@ -352,12 +358,14 @@ fn try_beam(
     heuristic: &mut AssignmentHeuristic,
     deadlocks: &DeadlockChecker,
     macros: &MacroEngine,
+    plan: &StructuralPlan,
     budget: &mut Budget,
     counters: &mut SearchCounters,
 ) -> Option<SearchOutcome> {
     let config = BeamConfig::default();
+    let plan_ref = if plan.is_active() { Some(plan) } else { None };
     match beam_search(
-        cb, initial, zk, heuristic, deadlocks, macros, budget, counters, &config,
+        cb, initial, zk, heuristic, deadlocks, macros, budget, counters, &config, plan_ref,
     ) {
         BeamResult::Solved { mut incumbents } => {
             incumbents.sort_by_key(|inc| inc.push_count);

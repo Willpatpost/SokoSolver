@@ -173,6 +173,44 @@
   letter-spacing: 0.02em;
 }
 
+.solveButton {
+  background: var(--sage-600);
+  color: var(--paper-50);
+  border-color: var(--sage-700);
+}
+
+.solveButton:hover {
+  background: var(--sage-700);
+}
+
+.cancelButton {
+  background: var(--coral-400);
+  color: var(--paper-50);
+  border-color: var(--coral-500);
+}
+
+.cancelButton:hover {
+  background: var(--coral-500);
+}
+
+.solverStatus {
+  padding: 0.45rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--paper-100);
+  font-size: 0.82rem;
+  color: var(--ink-700);
+  font-variant-numeric: tabular-nums;
+}
+
+.solverError {
+  padding: 0.45rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--coral-400);
+  color: var(--paper-50);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
 .shortcuts {
   font-size: 0.72rem;
   color: var(--ink-subtle);

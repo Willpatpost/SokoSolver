@@ -61,7 +61,9 @@ impl StructuralPlan {
         }
 
         let corral_boost = self.corral.corral_boost(cb, &self.rooms, box_cells);
-        let crossing_cost = self.schedule.total_crossing_priority(cb, &self.rooms, box_cells);
+        let crossing_cost = self
+            .schedule
+            .total_crossing_priority(cb, &self.rooms, box_cells);
 
         corral_boost + crossing_cost
     }
@@ -151,23 +153,13 @@ mod tests {
     #[test]
     fn evaluate_solved_zero() {
         let rows = &[
-            "OOOOOOO",
-            "OSS   O",
-            "O     O",
-            "O XX  O",
-            "O  R  O",
-            "O     O",
-            "OOOOOOO",
+            "OOOOOOO", "OSS   O", "O     O", "O XX  O", "O  R  O", "O     O", "OOOOOOO",
         ];
         let board = parse_board(rows).unwrap();
         let cb = CompiledBoard::from_parsed(&board);
         let plan = StructuralPlan::build(&cb);
 
-        let box_cells: Vec<(u16, u8)> = cb
-            .goal_cells
-            .iter()
-            .map(|&(c, l)| (c, l.0))
-            .collect();
+        let box_cells: Vec<(u16, u8)> = cb.goal_cells.iter().map(|&(c, l)| (c, l.0)).collect();
 
         // Solved state should have zero boost regardless of plan activity.
         let boost = plan.evaluate_state(&cb, &box_cells);

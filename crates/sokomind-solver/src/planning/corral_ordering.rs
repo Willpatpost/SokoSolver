@@ -28,7 +28,12 @@ impl CorralOrdering {
     /// a goal. Lower is better (boxes closer to goal rooms). This acts
     /// as a tiebreaker in beam search — among equal f-cost states,
     /// prefer those where distant boxes have been moved closer.
-    pub fn corral_boost(&self, cb: &CompiledBoard, rooms: &RoomMap, box_cells: &[(u16, u8)]) -> u32 {
+    pub fn corral_boost(
+        &self,
+        cb: &CompiledBoard,
+        rooms: &RoomMap,
+        box_cells: &[(u16, u8)],
+    ) -> u32 {
         let mut boost = 0u32;
 
         for &(cell, label) in box_cells {
@@ -179,13 +184,7 @@ mod tests {
     #[test]
     fn single_room_zero_distance() {
         let rows = &[
-            "OOOOOOO",
-            "OSS   O",
-            "O     O",
-            "O XX  O",
-            "O  R  O",
-            "O     O",
-            "OOOOOOO",
+            "OOOOOOO", "OSS   O", "O     O", "O XX  O", "O  R  O", "O     O", "OOOOOOO",
         ];
         let board = parse_board(rows).unwrap();
         let cb = CompiledBoard::from_parsed(&board);
@@ -199,37 +198,21 @@ mod tests {
     #[test]
     fn corral_boost_solved_is_zero() {
         let rows = &[
-            "OOOOOOO",
-            "OSS   O",
-            "O     O",
-            "O XX  O",
-            "O  R  O",
-            "O     O",
-            "OOOOOOO",
+            "OOOOOOO", "OSS   O", "O     O", "O XX  O", "O  R  O", "O     O", "OOOOOOO",
         ];
         let board = parse_board(rows).unwrap();
         let cb = CompiledBoard::from_parsed(&board);
         let rooms = RoomMap::analyze(&cb);
         let ordering = CorralOrdering::build(&cb, &rooms);
 
-        let box_cells: Vec<(u16, u8)> = cb
-            .goal_cells
-            .iter()
-            .map(|&(c, l)| (c, l.0))
-            .collect();
+        let box_cells: Vec<(u16, u8)> = cb.goal_cells.iter().map(|&(c, l)| (c, l.0)).collect();
         assert_eq!(ordering.corral_boost(&cb, &rooms, &box_cells), 0);
     }
 
     #[test]
     fn corral_boost_nonnegative() {
         let rows = &[
-            "OOOOOOO",
-            "OSS   O",
-            "O     O",
-            "O XX  O",
-            "O  R  O",
-            "O     O",
-            "OOOOOOO",
+            "OOOOOOO", "OSS   O", "O     O", "O XX  O", "O  R  O", "O     O", "OOOOOOO",
         ];
         let board = parse_board(rows).unwrap();
         let cb = CompiledBoard::from_parsed(&board);
@@ -268,8 +251,7 @@ mod tests {
 
         let ordering = CorralOrdering::build(&cb, &rooms);
 
-        let has_zero = (0..rooms.room_count)
-            .any(|r| ordering.room_distance(r) == 0);
+        let has_zero = (0..rooms.room_count).any(|r| ordering.room_distance(r) == 0);
         assert!(has_zero, "goal room should have distance 0");
 
         for r in 0..rooms.room_count {

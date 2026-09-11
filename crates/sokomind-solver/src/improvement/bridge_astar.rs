@@ -1,6 +1,6 @@
 use sokomind_core::position::Direction;
-use std::collections::BinaryHeap;
 use std::cmp::Reverse;
+use std::collections::BinaryHeap;
 
 use crate::compiled_board::{CompiledBoard, INVALID_CELL};
 use crate::deadlock::DeadlockChecker;
@@ -64,13 +64,9 @@ pub fn bridge_astar_improve(
         let pre = replay_to_offset(cb, pushes, start);
         let post = replay_to_offset(cb, pushes, orig_end);
 
-        if let Some(shorter) = astar_segment(
-            cb,
-            deadlocks,
-            &pre,
-            &post.box_cells,
-            seg_len as u32 - 1,
-        ) {
+        if let Some(shorter) =
+            astar_segment(cb, deadlocks, &pre, &post.box_cells, seg_len as u32 - 1)
+        {
             let saved = seg_len - shorter.len();
             pushes.splice(start..orig_end, shorter.clone());
             offset_adjustment -= saved as i32;
@@ -210,7 +206,10 @@ fn astar_segment(
                 if push_from == INVALID_CELL {
                     continue;
                 }
-                if box_cells.binary_search_by_key(&push_from, |&(c, _)| c).is_ok() {
+                if box_cells
+                    .binary_search_by_key(&push_from, |&(c, _)| c)
+                    .is_ok()
+                {
                     continue;
                 }
                 if !reachable[push_from as usize] {
@@ -253,11 +252,7 @@ fn astar_segment(
     None
 }
 
-fn heuristic_to_target(
-    _cb: &CompiledBoard,
-    current: &[(u16, u8)],
-    target: &[(u16, u8)],
-) -> u32 {
+fn heuristic_to_target(_cb: &CompiledBoard, current: &[(u16, u8)], target: &[(u16, u8)]) -> u32 {
     current
         .iter()
         .zip(target.iter())

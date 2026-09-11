@@ -145,13 +145,7 @@ mod tests {
     #[test]
     fn boxes_not_blocking_no_penalty() {
         let rows = &[
-            "OOOOOOO",
-            "OSS   O",
-            "O     O",
-            "O XX  O",
-            "O  R  O",
-            "O     O",
-            "OOOOOOO",
+            "OOOOOOO", "OSS   O", "O     O", "O XX  O", "O  R  O", "O     O", "OOOOOOO",
         ];
         let board = parse_board(rows).unwrap();
         let cb = CompiledBoard::from_parsed(&board);
@@ -196,22 +190,12 @@ mod tests {
     #[test]
     fn solved_state_no_penalty() {
         let rows = &[
-            "OOOOOOO",
-            "OSS   O",
-            "O     O",
-            "O XX  O",
-            "O  R  O",
-            "O     O",
-            "OOOOOOO",
+            "OOOOOOO", "OSS   O", "O     O", "O XX  O", "O  R  O", "O     O", "OOOOOOO",
         ];
         let board = parse_board(rows).unwrap();
         let cb = CompiledBoard::from_parsed(&board);
 
-        let box_cells: Vec<(u16, u8)> = cb
-            .goal_cells
-            .iter()
-            .map(|&(c, l)| (c, l.0))
-            .collect();
+        let box_cells: Vec<(u16, u8)> = cb.goal_cells.iter().map(|&(c, l)| (c, l.0)).collect();
         let penalty = count_interaction_penalties(&cb, &box_cells);
         assert_eq!(penalty, 0);
     }
@@ -223,7 +207,7 @@ mod tests {
         let cb = CompiledBoard::from_parsed(&board);
 
         let box_cell = cb.initial_box_cells[0].0;
-        let label = cb.initial_box_cells[0].1.0;
+        let label = cb.initial_box_cells[0].1 .0;
         let dist = nearest_goal_distance_empty(&cb, box_cell, label);
         assert!(dist > 0 && dist < u32::MAX);
     }

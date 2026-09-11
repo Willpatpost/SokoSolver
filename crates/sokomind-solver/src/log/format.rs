@@ -100,7 +100,7 @@ pub fn format_telemetry(telemetry: &crate::log::TelemetryCounters) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::pipeline::{SolverMetrics, SolverProof, ProofKind, Solution, SolutionStep};
+    use crate::pipeline::{ProofKind, Solution, SolutionStep, SolverMetrics, SolverProof};
     use sokomind_core::position::Direction;
 
     fn dummy_result() -> SolverResult {
@@ -108,8 +108,14 @@ mod tests {
             status: SolverStatus::Solved,
             solution: Some(Solution {
                 steps: vec![
-                    SolutionStep { direction: Direction::Up, pushed: false },
-                    SolutionStep { direction: Direction::Up, pushed: true },
+                    SolutionStep {
+                        direction: Direction::Up,
+                        pushed: false,
+                    },
+                    SolutionStep {
+                        direction: Direction::Up,
+                        pushed: true,
+                    },
                 ],
                 moves: 2,
                 pushes: 1,

@@ -118,14 +118,8 @@ mod tests {
 
     #[test]
     fn envelope_progress_json() {
-        let env = WorkerEnvelope::progress(
-            SolverPhase::Searching,
-            1234.5,
-            10000,
-            50000,
-            Some(15),
-            None,
-        );
+        let env =
+            WorkerEnvelope::progress(SolverPhase::Searching, 1234.5, 10000, 50000, Some(15), None);
         let json = env.to_json();
         assert!(json.contains("\"version\":2"));
         assert!(json.contains("\"Searching\""));

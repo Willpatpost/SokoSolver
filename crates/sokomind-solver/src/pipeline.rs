@@ -109,18 +109,23 @@ pub fn solve_with_progress(
 ) -> SolverResult {
     let mut logger = PhaseLogger::new(request.options.log_level);
 
-    let fire_progress =
-        |phase, budget: &Budget, counters: &SearchCounters, best: Option<u32>, logger: &mut PhaseLogger, cb: &mut dyn FnMut(&ProgressUpdate) -> bool| -> bool {
-            cb(&ProgressUpdate {
-                phase,
-                elapsed_ms: budget.elapsed_ms(),
-                expanded_states: counters.expanded,
-                generated_states: counters.generated,
-                best_pushes: best,
-                best_moves: None,
-                log_entries: logger.drain_entries(),
-            })
-        };
+    let fire_progress = |phase,
+                         budget: &Budget,
+                         counters: &SearchCounters,
+                         best: Option<u32>,
+                         logger: &mut PhaseLogger,
+                         cb: &mut dyn FnMut(&ProgressUpdate) -> bool|
+     -> bool {
+        cb(&ProgressUpdate {
+            phase,
+            elapsed_ms: budget.elapsed_ms(),
+            expanded_states: counters.expanded,
+            generated_states: counters.generated,
+            best_pushes: best,
+            best_moves: None,
+            log_entries: logger.drain_entries(),
+        })
+    };
 
     // Phase 0: Prepare
     logger.start_phase(SolverPhase::Preparing);
@@ -153,7 +158,14 @@ pub fn solve_with_progress(
     }
     logger.end_phase();
 
-    if !fire_progress(SolverPhase::Preparing, &budget, &counters, None, &mut logger, on_progress) {
+    if !fire_progress(
+        SolverPhase::Preparing,
+        &budget,
+        &counters,
+        None,
+        &mut logger,
+        on_progress,
+    ) {
         budget.cancel_handle().cancel();
     }
 
@@ -180,18 +192,34 @@ pub fn solve_with_progress(
     logger.set_counter("search.generated", counters.generated as f64);
     logger.set_counter("search.peak_frontier", counters.peak_frontier as f64);
     logger.set_counter("search.deadlock.static", counters.deadlock_static as f64);
-    logger.set_counter("search.deadlock.two_by_two", counters.deadlock_two_by_two as f64);
+    logger.set_counter(
+        "search.deadlock.two_by_two",
+        counters.deadlock_two_by_two as f64,
+    );
     logger.set_counter("search.deadlock.freeze", counters.deadlock_freeze as f64);
     logger.set_counter("search.deadlock.pattern", counters.deadlock_pattern as f64);
     logger.set_counter("search.heuristic.calls", counters.heuristic_calls as f64);
-    logger.set_counter("search.macro.forced_push", counters.macro_forced_push as f64);
+    logger.set_counter(
+        "search.macro.forced_push",
+        counters.macro_forced_push as f64,
+    );
     logger.set_counter("search.macro.tunnel", counters.macro_tunnel as f64);
-    logger.set_counter("search.transposition.unique", counters.transposition_unique as f64);
-    logger.set_counter("search.transposition.duplicate", counters.transposition_duplicate as f64);
+    logger.set_counter(
+        "search.transposition.unique",
+        counters.transposition_unique as f64,
+    );
+    logger.set_counter(
+        "search.transposition.duplicate",
+        counters.transposition_duplicate as f64,
+    );
 
     let outcome_str = match &search_result {
         SearchOutcome::Solved { pushes, optimal } => {
-            format!("found solution ({} pushes, optimal={})", pushes.len(), optimal)
+            format!(
+                "found solution ({} pushes, optimal={})",
+                pushes.len(),
+                optimal
+            )
         }
         SearchOutcome::Exhausted => "search space exhausted".into(),
         SearchOutcome::BudgetExceeded => "budget exceeded".into(),
@@ -203,9 +231,12 @@ pub fn solve_with_progress(
             outcome_str,
             counters.expanded,
             counters.generated,
-            counters.deadlock_static + counters.deadlock_two_by_two
-                + counters.deadlock_freeze + counters.deadlock_pattern
-                + counters.deadlock_pi_corral + counters.deadlock_table,
+            counters.deadlock_static
+                + counters.deadlock_two_by_two
+                + counters.deadlock_freeze
+                + counters.deadlock_pattern
+                + counters.deadlock_pi_corral
+                + counters.deadlock_table,
         ),
     );
     logger.end_phase();
@@ -214,7 +245,14 @@ pub fn solve_with_progress(
         SearchOutcome::Solved { pushes, .. } => Some(pushes.len() as u32),
         _ => None,
     };
-    if !fire_progress(SolverPhase::Searching, &budget, &counters, best_pushes, &mut logger, on_progress) {
+    if !fire_progress(
+        SolverPhase::Searching,
+        &budget,
+        &counters,
+        best_pushes,
+        &mut logger,
+        on_progress,
+    ) {
         budget.cancel_handle().cancel();
     }
 
@@ -262,7 +300,14 @@ pub fn solve_with_progress(
                     ),
                 );
                 logger.end_phase();
-                fire_progress(SolverPhase::Improving, &budget, &counters, Some(pushes.len() as u32), &mut logger, on_progress);
+                fire_progress(
+                    SolverPhase::Improving,
+                    &budget,
+                    &counters,
+                    Some(pushes.len() as u32),
+                    &mut logger,
+                    on_progress,
+                );
             }
 
             logger.start_phase(SolverPhase::Verifying);

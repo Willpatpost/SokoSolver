@@ -59,11 +59,8 @@ pub fn reschedule_boxes(
                 &post_boxes,
                 &pushes[offset..offset + combined_len],
             ) {
-                let orig_cost = segment_walk_cost(
-                    cb,
-                    &pre_state,
-                    &pushes[offset..offset + combined_len],
-                );
+                let orig_cost =
+                    segment_walk_cost(cb, &pre_state, &pushes[offset..offset + combined_len]);
                 let alt_cost = segment_walk_cost(cb, &pre_state, &alt);
 
                 if alt_cost < orig_cost {
@@ -119,7 +116,11 @@ struct PartialState {
     box_cells: Vec<(u16, u8)>,
 }
 
-fn replay_to_offset(cb: &CompiledBoard, pushes: &[(usize, Direction)], offset: usize) -> PartialState {
+fn replay_to_offset(
+    cb: &CompiledBoard,
+    pushes: &[(usize, Direction)],
+    offset: usize,
+) -> PartialState {
     let mut box_cells: Vec<(u16, u8)> = cb
         .initial_box_cells
         .iter()
@@ -194,7 +195,11 @@ fn try_swapped_order(
                 if target == INVALID_CELL {
                     continue;
                 }
-                if node.box_cells.binary_search_by_key(&target, |&(c, _)| c).is_ok() {
+                if node
+                    .box_cells
+                    .binary_search_by_key(&target, |&(c, _)| c)
+                    .is_ok()
+                {
                     continue;
                 }
 
@@ -202,7 +207,11 @@ fn try_swapped_order(
                 if push_from == INVALID_CELL {
                     continue;
                 }
-                if node.box_cells.binary_search_by_key(&push_from, |&(c, _)| c).is_ok() {
+                if node
+                    .box_cells
+                    .binary_search_by_key(&push_from, |&(c, _)| c)
+                    .is_ok()
+                {
                     continue;
                 }
                 if !reachable[push_from as usize] {
@@ -336,10 +345,7 @@ mod tests {
 
     #[test]
     fn segments_single_box() {
-        let pushes = vec![
-            (0, Direction::Up),
-            (0, Direction::Right),
-        ];
+        let pushes = vec![(0, Direction::Up), (0, Direction::Right)];
         let segs = identify_segments(&pushes);
         assert_eq!(segs.len(), 1);
         assert_eq!(segs[0].box_index, 0);
@@ -349,13 +355,7 @@ mod tests {
     #[test]
     fn two_box_reschedule() {
         let rows = &[
-            "OOOOOOO",
-            "OSS   O",
-            "O     O",
-            "O XX  O",
-            "O  R  O",
-            "O     O",
-            "OOOOOOO",
+            "OOOOOOO", "OSS   O", "O     O", "O XX  O", "O  R  O", "O     O", "OOOOOOO",
         ];
         let board = parse_board(rows).unwrap();
         let cb = CompiledBoard::from_parsed(&board);

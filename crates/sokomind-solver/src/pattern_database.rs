@@ -93,10 +93,7 @@ fn build_pattern_table(
     cb: &CompiledBoard,
     goal_indices: &[usize],
 ) -> Option<FxHashMap<Vec<u16>, u32>> {
-    let goal_cells: Vec<u16> = goal_indices
-        .iter()
-        .map(|&gi| cb.goal_cells[gi].0)
-        .collect();
+    let goal_cells: Vec<u16> = goal_indices.iter().map(|&gi| cb.goal_cells[gi].0).collect();
 
     let mut table: FxHashMap<Vec<u16>, u32> = FxHashMap::default();
     let mut queue: VecDeque<(Vec<u16>, u32)> = VecDeque::new();
@@ -150,11 +147,7 @@ fn build_pattern_table(
     }
 }
 
-fn lookup_best_match(
-    _cb: &CompiledBoard,
-    pattern: &Pattern,
-    box_positions: &[u16],
-) -> Option<u32> {
+fn lookup_best_match(_cb: &CompiledBoard, pattern: &Pattern, box_positions: &[u16]) -> Option<u32> {
     let n_pattern = pattern.goal_indices.len();
     if box_positions.len() < n_pattern {
         return None;
@@ -178,12 +171,8 @@ fn lookup_best_match(
     best
 }
 
-fn choose_combinations<F>(
-    items: &[u16],
-    k: usize,
-    current: &mut Vec<u16>,
-    callback: &mut F,
-) where
+fn choose_combinations<F>(items: &[u16], k: usize, current: &mut Vec<u16>, callback: &mut F)
+where
     F: FnMut(&[u16]),
 {
     if current.len() == k {
@@ -195,7 +184,11 @@ fn choose_combinations<F>(
     let start = if current.is_empty() {
         0
     } else {
-        items.iter().position(|&x| x == *current.last().unwrap()).unwrap_or(0) + 1
+        items
+            .iter()
+            .position(|&x| x == *current.last().unwrap())
+            .unwrap_or(0)
+            + 1
     };
 
     for i in start..items.len() {
@@ -225,13 +218,7 @@ mod tests {
     #[test]
     fn two_goals_builds_pattern() {
         let rows = &[
-            "OOOOOOO",
-            "OSS   O",
-            "O     O",
-            "O XX  O",
-            "O  R  O",
-            "O     O",
-            "OOOOOOO",
+            "OOOOOOO", "OSS   O", "O     O", "O XX  O", "O  R  O", "O     O", "OOOOOOO",
         ];
         let board = parse_board(rows).unwrap();
         let cb = CompiledBoard::from_parsed(&board);
@@ -243,23 +230,13 @@ mod tests {
     #[test]
     fn evaluate_at_goal_is_zero() {
         let rows = &[
-            "OOOOOOO",
-            "OSS   O",
-            "O     O",
-            "O XX  O",
-            "O  R  O",
-            "O     O",
-            "OOOOOOO",
+            "OOOOOOO", "OSS   O", "O     O", "O XX  O", "O  R  O", "O     O", "OOOOOOO",
         ];
         let board = parse_board(rows).unwrap();
         let cb = CompiledBoard::from_parsed(&board);
         let pdb = PatternDatabase::build(&cb);
 
-        let box_cells: Vec<(u16, u8)> = cb
-            .goal_cells
-            .iter()
-            .map(|&(c, l)| (c, l.0))
-            .collect();
+        let box_cells: Vec<(u16, u8)> = cb.goal_cells.iter().map(|&(c, l)| (c, l.0)).collect();
         let h = pdb.evaluate(&cb, &box_cells);
         assert_eq!(h, 0);
     }
@@ -267,13 +244,7 @@ mod tests {
     #[test]
     fn evaluate_off_goal_positive() {
         let rows = &[
-            "OOOOOOO",
-            "OSS   O",
-            "O     O",
-            "O XX  O",
-            "O  R  O",
-            "O     O",
-            "OOOOOOO",
+            "OOOOOOO", "OSS   O", "O     O", "O XX  O", "O  R  O", "O     O", "OOOOOOO",
         ];
         let board = parse_board(rows).unwrap();
         let cb = CompiledBoard::from_parsed(&board);
@@ -291,13 +262,7 @@ mod tests {
     #[test]
     fn admissibility_check() {
         let rows = &[
-            "OOOOOOO",
-            "OSS   O",
-            "O     O",
-            "O XX  O",
-            "O  R  O",
-            "O     O",
-            "OOOOOOO",
+            "OOOOOOO", "OSS   O", "O     O", "O XX  O", "O  R  O", "O     O", "OOOOOOO",
         ];
         let board = parse_board(rows).unwrap();
         let cb = CompiledBoard::from_parsed(&board);
@@ -311,18 +276,17 @@ mod tests {
         let h = pdb.evaluate(&cb, &box_cells);
         // PDB should never exceed the actual optimal cost. On this
         // 2-box puzzle, optimal is ~4 pushes.
-        assert!(h <= 10, "PDB should give a reasonable lower bound, got {}", h);
+        assert!(
+            h <= 10,
+            "PDB should give a reasonable lower bound, got {}",
+            h
+        );
     }
 
     #[test]
     fn typed_labels_separate_patterns() {
         let rows = &[
-            "OOOOOOO",
-            "O a   O",
-            "O AR  O",
-            "O B   O",
-            "O   b O",
-            "OOOOOOO",
+            "OOOOOOO", "O a   O", "O AR  O", "O B   O", "O   b O", "OOOOOOO",
         ];
         let board = parse_board(rows).unwrap();
         let cb = CompiledBoard::from_parsed(&board);

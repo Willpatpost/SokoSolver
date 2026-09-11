@@ -35,7 +35,9 @@ pub fn solve_with_progress(
 pub fn parse_worker_command(json: &str) -> String {
     match serde_json::from_str::<worker_protocol::WorkerCommand>(json) {
         Ok(_) => json.to_string(),
-        Err(e) => worker_protocol::WorkerEnvelope::error(format!("invalid command: {}", e)).to_json(),
+        Err(e) => {
+            worker_protocol::WorkerEnvelope::error(format!("invalid command: {}", e)).to_json()
+        }
     }
 }
 

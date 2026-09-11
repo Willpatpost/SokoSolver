@@ -34,12 +34,7 @@ impl DoorwaySchedule {
     }
 
     /// Compute crossings for a box at an arbitrary cell (runtime query).
-    pub fn crossings_from_cell(
-        cb: &CompiledBoard,
-        rooms: &RoomMap,
-        cell: u16,
-        label: u8,
-    ) -> u16 {
+    pub fn crossings_from_cell(cb: &CompiledBoard, rooms: &RoomMap, cell: u16, label: u8) -> u16 {
         min_doorway_crossings(cb, rooms, cell, label)
     }
 
@@ -73,12 +68,7 @@ impl DoorwaySchedule {
 ///
 /// Uses room distances: if box and goal are in the same room, crossings = 0.
 /// If separated by doorways, crossings = room_distance between them.
-fn min_doorway_crossings(
-    cb: &CompiledBoard,
-    rooms: &RoomMap,
-    cell: u16,
-    label: u8,
-) -> u16 {
+fn min_doorway_crossings(cb: &CompiledBoard, rooms: &RoomMap, cell: u16, label: u8) -> u16 {
     let box_room = if rooms.is_doorway(cell) {
         None
     } else {
@@ -122,12 +112,7 @@ fn min_doorway_crossings(
 }
 
 /// BFS distance between two rooms in the room adjacency graph.
-fn room_bfs_distance(
-    rooms: &RoomMap,
-    cb: &CompiledBoard,
-    from: u16,
-    to: u16,
-) -> Option<u16> {
+fn room_bfs_distance(rooms: &RoomMap, cb: &CompiledBoard, from: u16, to: u16) -> Option<u16> {
     if from == to {
         return Some(0);
     }
@@ -216,13 +201,7 @@ mod tests {
     #[test]
     fn single_room_zero_crossings() {
         let rows = &[
-            "OOOOOOO",
-            "OSS   O",
-            "O     O",
-            "O XX  O",
-            "O  R  O",
-            "O     O",
-            "OOOOOOO",
+            "OOOOOOO", "OSS   O", "O     O", "O XX  O", "O  R  O", "O     O", "OOOOOOO",
         ];
         let board = parse_board(rows).unwrap();
         let cb = CompiledBoard::from_parsed(&board);
@@ -238,24 +217,14 @@ mod tests {
     #[test]
     fn solved_state_zero_priority() {
         let rows = &[
-            "OOOOOOO",
-            "OSS   O",
-            "O     O",
-            "O XX  O",
-            "O  R  O",
-            "O     O",
-            "OOOOOOO",
+            "OOOOOOO", "OSS   O", "O     O", "O XX  O", "O  R  O", "O     O", "OOOOOOO",
         ];
         let board = parse_board(rows).unwrap();
         let cb = CompiledBoard::from_parsed(&board);
         let rooms = RoomMap::analyze(&cb);
         let schedule = DoorwaySchedule::build(&cb, &rooms);
 
-        let box_cells: Vec<(u16, u8)> = cb
-            .goal_cells
-            .iter()
-            .map(|&(c, l)| (c, l.0))
-            .collect();
+        let box_cells: Vec<(u16, u8)> = cb.goal_cells.iter().map(|&(c, l)| (c, l.0)).collect();
         let priority = schedule.total_crossing_priority(&cb, &rooms, &box_cells);
         assert_eq!(priority, 0);
     }
@@ -284,7 +253,10 @@ mod tests {
         let schedule = DoorwaySchedule::build(&cb, &rooms);
         // If multiple rooms exist, at least some crossings should be computed.
         // The exact count depends on room/box/goal topology.
-        assert!(schedule.max_crossings() < 100, "crossings should be bounded");
+        assert!(
+            schedule.max_crossings() < 100,
+            "crossings should be bounded"
+        );
     }
 
     #[test]

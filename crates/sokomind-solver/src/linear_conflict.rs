@@ -196,9 +196,6 @@ mod tests {
 
         // Let's construct: goals at cols 1 and 4, boxes at cols 2 and 3, same row.
         // Box at col 2 → goal at col 4 (right), box at col 3 → goal at col 1 (left).
-        // They must cross.
-        let rows = &["OOOOOOO", "OS XX SO", "O  R   O", "O      O", "OOOOOOOO"];
-        // This might not parse cleanly. Let me use a simpler layout.
         let rows = &["OOOOOOOO", "OS XX SO", "O  R   O", "O      O", "OOOOOOOO"];
         let board = parse_board(rows);
         if board.is_err() {

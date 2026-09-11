@@ -95,7 +95,8 @@ pub fn find_keeper_path(
         return None;
     }
 
-    let mut parent: Vec<(u16, Direction)> = vec![(INVALID_CELL, Direction::Up); cb.cell_count as usize];
+    let mut parent: Vec<(u16, Direction)> =
+        vec![(INVALID_CELL, Direction::Up); cb.cell_count as usize];
     let mut visited = vec![false; cb.cell_count as usize];
     let mut queue = VecDeque::new();
     visited[start as usize] = true;

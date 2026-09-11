@@ -210,9 +210,13 @@ fn run_search(
     mode: &SolverMode,
 ) -> SearchOutcome {
     if is_small_puzzle(cb) {
-        run_small_puzzle_search(cb, initial, zk, heuristic, deadlocks, budget, counters, mode)
+        run_small_puzzle_search(
+            cb, initial, zk, heuristic, deadlocks, budget, counters, mode,
+        )
     } else {
-        run_large_puzzle_search(cb, initial, zk, heuristic, deadlocks, budget, counters, mode)
+        run_large_puzzle_search(
+            cb, initial, zk, heuristic, deadlocks, budget, counters, mode,
+        )
     }
 }
 
@@ -243,7 +247,9 @@ fn run_small_puzzle_search(
             }
             if matches!(mode, SolverMode::Quality | SolverMode::Optimal) && !budget.exhausted() {
                 heuristic.clear_cache();
-                try_ida_star(cb, initial, zk, heuristic, deadlocks, budget, counters, None)
+                try_ida_star(
+                    cb, initial, zk, heuristic, deadlocks, budget, counters, None,
+                )
             } else {
                 SearchOutcome::BudgetExceeded
             }
@@ -270,7 +276,14 @@ fn run_large_puzzle_search(
                 let upper = pushes.len() as u32;
                 heuristic.clear_cache();
                 let proof = try_ida_star(
-                    cb, initial, zk, heuristic, deadlocks, budget, counters, Some(upper),
+                    cb,
+                    initial,
+                    zk,
+                    heuristic,
+                    deadlocks,
+                    budget,
+                    counters,
+                    Some(upper),
                 );
                 if let SearchOutcome::Solved {
                     pushes: proof_pushes,
@@ -314,7 +327,9 @@ fn try_beam(
     counters: &mut SearchCounters,
 ) -> Option<SearchOutcome> {
     let config = BeamConfig::default();
-    match beam_search(cb, initial, zk, heuristic, deadlocks, budget, counters, &config) {
+    match beam_search(
+        cb, initial, zk, heuristic, deadlocks, budget, counters, &config,
+    ) {
         BeamResult::Solved { mut incumbents } => {
             incumbents.sort_by_key(|inc| inc.push_count);
             let best = incumbents.into_iter().next().unwrap();
@@ -339,7 +354,16 @@ fn try_ida_star(
     counters: &mut SearchCounters,
     upper_bound: Option<u32>,
 ) -> SearchOutcome {
-    match ida_star_search(cb, initial, zk, heuristic, deadlocks, budget, counters, upper_bound) {
+    match ida_star_search(
+        cb,
+        initial,
+        zk,
+        heuristic,
+        deadlocks,
+        budget,
+        counters,
+        upper_bound,
+    ) {
         IDAStarResult::Solved { pushes, .. } => SearchOutcome::Solved {
             pushes,
             optimal: true,
@@ -483,8 +507,9 @@ mod tests {
 
     #[test]
     fn solve_typed_labels() {
-        let request =
-            make_request(&["OOOOOOO", "O a   O", "O AR  O", "O B   O", "O   b O", "OOOOOOO"]);
+        let request = make_request(&[
+            "OOOOOOO", "O a   O", "O AR  O", "O B   O", "O   b O", "OOOOOOO",
+        ]);
         let result = solve(&request);
         match result.status {
             SolverStatus::Solved => {
@@ -523,11 +548,8 @@ mod tests {
         let result = solve(&request);
         if let SolverStatus::Solved = result.status {
             let sol = result.solution.unwrap();
-            let steps: Vec<(Direction, bool)> = sol
-                .steps
-                .iter()
-                .map(|s| (s.direction, s.pushed))
-                .collect();
+            let steps: Vec<(Direction, bool)> =
+                sol.steps.iter().map(|s| (s.direction, s.pushed)).collect();
             let verified = verify_solution(&request.board, &steps);
             assert!(verified.is_ok());
         }
@@ -538,14 +560,7 @@ mod tests {
         // 6 boxes triggers the large-puzzle (beam-first) path
         // Narrow layout keeps search space manageable in debug builds
         let request = make_request(&[
-            "OOOOOOO",
-            "OSX R O",
-            "OSX   O",
-            "OSX   O",
-            "OSX   O",
-            "OSX   O",
-            "OSX   O",
-            "OOOOOOO",
+            "OOOOOOO", "OSX R O", "OSX   O", "OSX   O", "OSX   O", "OSX   O", "OSX   O", "OOOOOOO",
         ]);
         let result = solve(&request);
         match result.status {
@@ -553,11 +568,8 @@ mod tests {
                 let sol = result.solution.unwrap();
                 assert!(sol.pushes >= 6);
                 assert!(sol.final_snapshot.solved);
-                let steps: Vec<(Direction, bool)> = sol
-                    .steps
-                    .iter()
-                    .map(|s| (s.direction, s.pushed))
-                    .collect();
+                let steps: Vec<(Direction, bool)> =
+                    sol.steps.iter().map(|s| (s.direction, s.pushed)).collect();
                 let verified = verify_solution(&request.board, &steps);
                 assert!(verified.is_ok());
             }

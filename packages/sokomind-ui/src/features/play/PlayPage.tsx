@@ -4,7 +4,7 @@ import { createSnapshot, parsePuzzle, stepSnapshot } from "../../core/engine.ts"
 import { getOrderedPuzzles } from "../../catalog/puzzles.ts";
 import { SolverWorkerClient } from "../../solver/worker-client.ts";
 import type { SolverResult, SolverPhase } from "../../solver/types.ts";
-import { isSolved as isSolverSolved } from "../../solver/types.ts";
+import { isSolved as isSolverSolved, isUnsolved } from "../../solver/types.ts";
 import { Board } from "../game/Board.tsx";
 import styles from "./PlayPage.module.css";
 
@@ -189,7 +189,11 @@ export function PlayPage() {
           if (isSolverSolved(result.status) && result.solution) {
             setSolverStatus("solved");
           } else {
+            const reason = isUnsolved(result.status)
+              ? result.status.Unsolved.reason
+              : `status: ${JSON.stringify(result.status)}`;
             setSolverStatus("no-solution");
+            setSolverError(reason);
           }
         },
         onError(message) {
@@ -362,7 +366,7 @@ export function PlayPage() {
 
         {solverStatus === "no-solution" && (
           <div className={styles.solverError}>
-            No solution found
+            No solution found{solverError ? `: ${solverError}` : ""}
           </div>
         )}
 

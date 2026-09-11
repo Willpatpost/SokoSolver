@@ -9,6 +9,7 @@ use crate::counters::SearchCounters;
 use crate::deadlock::DeadlockChecker;
 use crate::dense_state::DenseState;
 use crate::heuristic::AssignmentHeuristic;
+use crate::improvement;
 use crate::log::PhaseLogger;
 use crate::macros::MacroEngine;
 use crate::reachability::find_keeper_path;
@@ -131,7 +132,17 @@ pub fn solve(request: &SolverRequest) -> SolverResult {
     };
 
     match search_result {
-        SearchOutcome::Solved { pushes, optimal } => {
+        SearchOutcome::Solved {
+            mut pushes,
+            optimal,
+        } => {
+            // Phase 4: Improve (skip for proven-optimal solutions)
+            if !optimal {
+                logger.start_phase(SolverPhase::Improving);
+                improvement::improve_push_sequence(&cb, &deadlocks, &mut pushes);
+                logger.end_phase();
+            }
+
             logger.start_phase(SolverPhase::Verifying);
             match pushes_to_solution(&cb, &request.board, &pushes) {
                 Ok(solution) => {
@@ -419,6 +430,8 @@ fn pushes_to_solution(
         box_cells.sort();
         keeper = box_cell;
     }
+
+    improvement::move_window::optimize_walks(cb, &mut steps);
 
     let (moves, push_count) =
         verify_solution(board, &steps).map_err(PushConversionError::Verification)?;

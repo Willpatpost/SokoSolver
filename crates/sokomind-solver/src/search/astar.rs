@@ -113,7 +113,8 @@ pub fn astar_search(
         budget.tick_generated(successors.len() as u64);
 
         for succ in successors {
-            if deadlocks.is_deadlocked(cb, &succ.state.box_cells, counters) {
+            if deadlocks.is_deadlocked(cb, succ.state.keeper_zone, &succ.state.box_cells, counters)
+            {
                 continue;
             }
 

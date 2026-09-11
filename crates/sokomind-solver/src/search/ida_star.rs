@@ -131,7 +131,7 @@ fn dfs(
     let mut min_next = u32::MAX;
 
     for succ in successors {
-        if deadlocks.is_deadlocked(cb, &succ.state.box_cells, counters) {
+        if deadlocks.is_deadlocked(cb, succ.state.keeper_zone, &succ.state.box_cells, counters) {
             continue;
         }
 

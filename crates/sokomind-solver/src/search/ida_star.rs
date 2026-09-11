@@ -107,9 +107,9 @@ fn dfs(
         return DfsResult::BudgetExceeded;
     }
 
-    let (current, current_hash) = path.last().unwrap().clone();
+    let (current, current_hash) = path.last().unwrap();
 
-    let h = heuristic.evaluate(cb, &current, current_hash);
+    let h = heuristic.evaluate(cb, current, *current_hash);
     counters.heuristic_calls += 1;
     let f = g.saturating_add(h);
 
@@ -126,7 +126,7 @@ fn dfs(
         return DfsResult::Found;
     }
 
-    let successors = generate_successors(cb, &current);
+    let successors = generate_successors(cb, current);
     counters.generated += successors.len() as u64;
     budget.tick_generated(successors.len() as u64);
 

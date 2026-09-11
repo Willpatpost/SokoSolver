@@ -369,8 +369,7 @@ fn pushes_to_solution(
         let box_cell = box_cells[box_index].0;
         let push_from = cb.neighbor(box_cell, push_dir.opposite());
 
-        let sorted_positions: Vec<u16> = box_cells.iter().map(|&(c, _)| c).collect();
-        let walk_path = find_keeper_path(cb, keeper, push_from, &sorted_positions)
+        let walk_path = find_keeper_path(cb, keeper, push_from, &box_cells)
             .ok_or(PushConversionError::UnreachablePushPosition)?;
 
         for &dir in &walk_path {

@@ -34,7 +34,7 @@ pub fn is_freeze_deadlock(cb: &CompiledBoard, box_cells: &[(u16, u8)]) -> bool {
     for i in 0..n {
         if frozen[i] {
             let (cell, label) = box_cells[i];
-            if !goal_matches(cb, cell, label) {
+            if !cb.goal_matches(cell, label) {
                 return true;
             }
         }
@@ -83,12 +83,6 @@ fn is_direction_blocked(
         return frozen[idx];
     }
     false
-}
-
-fn goal_matches(cb: &CompiledBoard, cell: u16, label_group: u8) -> bool {
-    cb.goal_cells
-        .iter()
-        .any(|&(gc, gl)| gc == cell && gl.0 == label_group)
 }
 
 #[cfg(test)]

@@ -4,9 +4,9 @@ use std::collections::VecDeque;
 use crate::compiled_board::{CompiledBoard, INVALID_CELL};
 
 /// Compute all cells reachable by the keeper from `start` without moving boxes.
-/// `box_cells` is a sorted slice of cells occupied by boxes.
+/// `box_cells` is a sorted slice of (cell, label) pairs.
 /// Returns a bitset (Vec<bool>) indexed by cell id.
-pub fn keeper_reachable(cb: &CompiledBoard, start: u16, box_cells: &[u16]) -> Vec<bool> {
+pub fn keeper_reachable(cb: &CompiledBoard, start: u16, box_cells: &[(u16, u8)]) -> Vec<bool> {
     let mut visited = vec![false; cb.cell_count as usize];
     if start == INVALID_CELL {
         return visited;
@@ -22,7 +22,7 @@ pub fn keeper_reachable(cb: &CompiledBoard, start: u16, box_cells: &[u16]) -> Ve
             if n == INVALID_CELL || visited[n as usize] {
                 continue;
             }
-            if box_cells.binary_search(&n).is_ok() {
+            if box_cells.binary_search_by_key(&n, |&(c, _)| c).is_ok() {
                 continue;
             }
             visited[n as usize] = true;
@@ -35,7 +35,7 @@ pub fn keeper_reachable(cb: &CompiledBoard, start: u16, box_cells: &[u16]) -> Ve
 
 /// Return the smallest cell id reachable from `start` (canonical representative).
 /// Used to normalize keeper position for transposition.
-pub fn canonical_keeper(cb: &CompiledBoard, start: u16, box_cells: &[u16]) -> u16 {
+pub fn canonical_keeper(cb: &CompiledBoard, start: u16, box_cells: &[(u16, u8)]) -> u16 {
     let reachable = keeper_reachable(cb, start, box_cells);
     reachable
         .iter()
@@ -47,7 +47,7 @@ pub fn canonical_keeper(cb: &CompiledBoard, start: u16, box_cells: &[u16]) -> u1
 }
 
 /// Check if the keeper can reach `target` from `start` without moving boxes.
-pub fn can_reach(cb: &CompiledBoard, start: u16, target: u16, box_cells: &[u16]) -> bool {
+pub fn can_reach(cb: &CompiledBoard, start: u16, target: u16, box_cells: &[(u16, u8)]) -> bool {
     if start == target {
         return true;
     }
@@ -66,7 +66,7 @@ pub fn can_reach(cb: &CompiledBoard, start: u16, target: u16, box_cells: &[u16])
             if n == INVALID_CELL || visited[n as usize] {
                 continue;
             }
-            if box_cells.binary_search(&n).is_ok() {
+            if box_cells.binary_search_by_key(&n, |&(c, _)| c).is_ok() {
                 continue;
             }
             if n == target {
@@ -86,7 +86,7 @@ pub fn find_keeper_path(
     cb: &CompiledBoard,
     start: u16,
     target: u16,
-    box_cells: &[u16],
+    box_cells: &[(u16, u8)],
 ) -> Option<Vec<Direction>> {
     if start == target {
         return Some(Vec::new());
@@ -107,7 +107,7 @@ pub fn find_keeper_path(
             if n == INVALID_CELL || visited[n as usize] {
                 continue;
             }
-            if box_cells.binary_search(&n).is_ok() {
+            if box_cells.binary_search_by_key(&n, |&(c, _)| c).is_ok() {
                 continue;
             }
             visited[n as usize] = true;
@@ -136,7 +136,7 @@ pub fn keeper_distance(
     cb: &CompiledBoard,
     start: u16,
     target: u16,
-    box_cells: &[u16],
+    box_cells: &[(u16, u8)],
 ) -> Option<u32> {
     if start == target {
         return Some(0);
@@ -157,7 +157,7 @@ pub fn keeper_distance(
             if n == INVALID_CELL {
                 continue;
             }
-            if box_cells.binary_search(&n).is_ok() {
+            if box_cells.binary_search_by_key(&n, |&(c, _)| c).is_ok() {
                 continue;
             }
             if dist[n as usize] <= d + 1 {
@@ -198,7 +198,7 @@ mod tests {
     fn box_blocks_path() {
         let cb = setup();
         let box_cell = cb.initial_box_cells[0].0;
-        let mut boxes = vec![box_cell];
+        let mut boxes: Vec<(u16, u8)> = vec![(box_cell, 0)];
         boxes.sort();
         let reach = keeper_reachable(&cb, cb.robot_cell, &boxes);
         assert!(!reach[box_cell as usize]);
@@ -240,16 +240,13 @@ mod tests {
     #[test]
     fn keeper_distance_blocked() {
         let cb = setup();
-        // Fill a corridor with boxes to block
         let box_cell = cb.pos_to_cell(Position::new(1, 1));
-        let boxes = vec![
-            cb.pos_to_cell(Position::new(1, 2)),
-            cb.pos_to_cell(Position::new(2, 2)),
-            cb.pos_to_cell(Position::new(3, 2)),
+        let mut sorted_boxes: Vec<(u16, u8)> = vec![
+            (cb.pos_to_cell(Position::new(1, 2)), 0),
+            (cb.pos_to_cell(Position::new(2, 2)), 0),
+            (cb.pos_to_cell(Position::new(3, 2)), 0),
         ];
-        let mut sorted_boxes = boxes;
         sorted_boxes.sort();
-        // box_cell at (1,1) — keeper at (2,3) can't reach (1,1) if column 2 is blocked
         let dist = keeper_distance(&cb, cb.robot_cell, box_cell, &sorted_boxes);
         assert_eq!(dist, None);
     }

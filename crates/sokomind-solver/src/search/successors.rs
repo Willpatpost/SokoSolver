@@ -2,7 +2,7 @@ use sokomind_core::position::Direction;
 
 use crate::compiled_board::{CompiledBoard, INVALID_CELL};
 use crate::dense_state::DenseState;
-use crate::reachability::{can_reach, canonical_keeper};
+use crate::reachability::{canonical_keeper, keeper_reachable};
 
 /// A push successor: moving a box in a direction.
 #[derive(Clone, Debug)]
@@ -13,13 +13,11 @@ pub struct PushSuccessor {
 }
 
 /// Generate all legal push successors from the current state.
-/// For each box, for each direction, check:
-/// 1. The keeper can reach the push position (cell opposite the push direction).
-/// 2. The target cell (where the box moves to) is a valid floor cell.
-/// 3. The target cell is not occupied by another box.
+/// Precomputes keeper reachability once (single BFS), then checks each
+/// push position with O(1) array lookup instead of per-push BFS.
 pub fn generate_successors(cb: &CompiledBoard, state: &DenseState) -> Vec<PushSuccessor> {
     let mut successors = Vec::new();
-    let sorted_boxes = state.sorted_box_positions();
+    let reachable = keeper_reachable(cb, state.keeper_zone, &state.box_cells);
 
     for (bi, &(box_cell, label)) in state.box_cells.iter().enumerate() {
         for dir in Direction::ALL {
@@ -28,7 +26,7 @@ pub fn generate_successors(cb: &CompiledBoard, state: &DenseState) -> Vec<PushSu
                 continue;
             }
 
-            if sorted_boxes.binary_search(&target).is_ok() {
+            if state.box_cells.binary_search_by_key(&target, |&(c, _)| c).is_ok() {
                 continue;
             }
 
@@ -37,11 +35,11 @@ pub fn generate_successors(cb: &CompiledBoard, state: &DenseState) -> Vec<PushSu
                 continue;
             }
 
-            if sorted_boxes.binary_search(&push_from).is_ok() {
+            if state.box_cells.binary_search_by_key(&push_from, |&(c, _)| c).is_ok() {
                 continue;
             }
 
-            if !can_reach(cb, state.keeper_zone, push_from, &sorted_boxes) {
+            if !reachable[push_from as usize] {
                 continue;
             }
 
@@ -49,8 +47,7 @@ pub fn generate_successors(cb: &CompiledBoard, state: &DenseState) -> Vec<PushSu
             new_box_cells[bi] = (target, label);
             new_box_cells.sort();
 
-            let new_sorted: Vec<u16> = new_box_cells.iter().map(|&(c, _)| c).collect();
-            let new_keeper_zone = canonical_keeper(cb, box_cell, &new_sorted);
+            let new_keeper_zone = canonical_keeper(cb, box_cell, &new_box_cells);
 
             successors.push(PushSuccessor {
                 state: DenseState {

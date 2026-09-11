@@ -13,17 +13,14 @@ pub struct DenseState {
 
 impl DenseState {
     pub fn from_initial(cb: &CompiledBoard) -> Self {
-        let mut sorted_boxes: Vec<u16> = cb.initial_box_cells.iter().map(|&(c, _)| c).collect();
-        sorted_boxes.sort();
-
-        let keeper_zone = canonical_keeper(cb, cb.robot_cell, &sorted_boxes);
-
         let mut box_cells: Vec<(u16, u8)> = cb
             .initial_box_cells
             .iter()
             .map(|&(c, l)| (c, l.0))
             .collect();
         box_cells.sort();
+
+        let keeper_zone = canonical_keeper(cb, cb.robot_cell, &box_cells);
 
         DenseState {
             keeper_zone,
@@ -37,16 +34,10 @@ impl DenseState {
         zk.hash_state(self.keeper_zone, &self.box_cells)
     }
 
-    pub fn sorted_box_positions(&self) -> Vec<u16> {
-        self.box_cells.iter().map(|&(c, _)| c).collect()
-    }
-
     pub fn is_solved(&self, cb: &CompiledBoard) -> bool {
-        self.box_cells.iter().all(|&(cell, label_group)| {
-            cb.goal_cells
-                .iter()
-                .any(|&(gc, gl)| gc == cell && gl.0 == label_group)
-        })
+        self.box_cells
+            .iter()
+            .all(|&(cell, label_group)| cb.goal_matches(cell, label_group))
     }
 }
 

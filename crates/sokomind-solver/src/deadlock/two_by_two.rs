@@ -67,7 +67,7 @@ fn is_blocked_2x2(cb: &CompiledBoard, box_cells: &[(u16, u8)], block: [u16; 4]) 
 
     for &cell in &block {
         if let Some(&(_, label)) = box_cells.iter().find(|&&(c, _)| c == cell) {
-            if !goal_matches(cb, cell, label) {
+            if !cb.goal_matches(cell, label) {
                 any_box_off_goal = true;
             }
         }
@@ -78,12 +78,6 @@ fn is_blocked_2x2(cb: &CompiledBoard, box_cells: &[(u16, u8)], block: [u16; 4]) 
     }
 
     any_box_off_goal
-}
-
-fn goal_matches(cb: &CompiledBoard, cell: u16, label_group: u8) -> bool {
-    cb.goal_cells
-        .iter()
-        .any(|&(gc, gl)| gc == cell && gl.0 == label_group)
 }
 
 #[cfg(test)]

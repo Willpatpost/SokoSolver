@@ -12,6 +12,7 @@ use crate::heuristic::AssignmentHeuristic;
 use crate::log::PhaseLogger;
 use crate::reachability::find_keeper_path;
 use crate::search::astar::{astar_search, AStarResult};
+use crate::search::beam::{beam_search, BeamConfig, BeamResult};
 use crate::search::ida_star::{ida_star_search, IDAStarResult};
 use crate::verification::{verify_solution, VerificationError};
 use crate::zobrist::ZobristKeys;
@@ -189,6 +190,14 @@ enum SearchOutcome {
     BudgetExceeded,
 }
 
+fn is_small_puzzle(cb: &CompiledBoard) -> bool {
+    cb.initial_box_cells.len() <= 5
+}
+
+/// Adaptive search strategy:
+/// - Small puzzles (<=5 boxes): A* first (fast, proves optimality), beam fallback
+/// - Larger puzzles: beam search first (bounded memory), A* fallback
+/// - Quality/Optimal: proof attempt with A*/IDA* after discovery
 #[allow(clippy::too_many_arguments)]
 fn run_search(
     cb: &CompiledBoard,
@@ -200,39 +209,143 @@ fn run_search(
     counters: &mut SearchCounters,
     mode: &SolverMode,
 ) -> SearchOutcome {
-    match mode {
-        SolverMode::Fast => match astar_search(cb, initial, zk, heuristic, deadlocks, budget, counters) {
+    if is_small_puzzle(cb) {
+        run_small_puzzle_search(cb, initial, zk, heuristic, deadlocks, budget, counters, mode)
+    } else {
+        run_large_puzzle_search(cb, initial, zk, heuristic, deadlocks, budget, counters, mode)
+    }
+}
+
+/// Small puzzle: A* first → beam fallback → IDA* proof (quality/optimal)
+#[allow(clippy::too_many_arguments)]
+fn run_small_puzzle_search(
+    cb: &CompiledBoard,
+    initial: &DenseState,
+    zk: &ZobristKeys,
+    heuristic: &mut AssignmentHeuristic,
+    deadlocks: &DeadlockChecker,
+    budget: &mut Budget,
+    counters: &mut SearchCounters,
+    mode: &SolverMode,
+) -> SearchOutcome {
+    let astar_result = astar_search(cb, initial, zk, heuristic, deadlocks, budget, counters);
+    match astar_result {
+        AStarResult::Solved { pushes, .. } => SearchOutcome::Solved {
+            pushes,
+            optimal: true,
+        },
+        AStarResult::Exhausted => SearchOutcome::Exhausted,
+        AStarResult::BudgetExceeded => {
+            heuristic.clear_cache();
+            let beam_result = try_beam(cb, initial, zk, heuristic, deadlocks, budget, counters);
+            if let Some(outcome) = beam_result {
+                return outcome;
+            }
+            if matches!(mode, SolverMode::Quality | SolverMode::Optimal) && !budget.exhausted() {
+                heuristic.clear_cache();
+                try_ida_star(cb, initial, zk, heuristic, deadlocks, budget, counters, None)
+            } else {
+                SearchOutcome::BudgetExceeded
+            }
+        }
+    }
+}
+
+/// Large puzzle: beam first → A* fallback → IDA* proof (quality/optimal)
+#[allow(clippy::too_many_arguments)]
+fn run_large_puzzle_search(
+    cb: &CompiledBoard,
+    initial: &DenseState,
+    zk: &ZobristKeys,
+    heuristic: &mut AssignmentHeuristic,
+    deadlocks: &DeadlockChecker,
+    budget: &mut Budget,
+    counters: &mut SearchCounters,
+    mode: &SolverMode,
+) -> SearchOutcome {
+    let beam_result = try_beam(cb, initial, zk, heuristic, deadlocks, budget, counters);
+    if let Some(outcome) = beam_result {
+        if let SearchOutcome::Solved { ref pushes, .. } = outcome {
+            if matches!(mode, SolverMode::Quality | SolverMode::Optimal) && !budget.exhausted() {
+                let upper = pushes.len() as u32;
+                heuristic.clear_cache();
+                let proof = try_ida_star(
+                    cb, initial, zk, heuristic, deadlocks, budget, counters, Some(upper),
+                );
+                if let SearchOutcome::Solved {
+                    pushes: proof_pushes,
+                    ..
+                } = proof
+                {
+                    return SearchOutcome::Solved {
+                        pushes: proof_pushes,
+                        optimal: true,
+                    };
+                }
+            }
+        }
+        return outcome;
+    }
+
+    if !budget.exhausted() {
+        heuristic.clear_cache();
+        let astar_result = astar_search(cb, initial, zk, heuristic, deadlocks, budget, counters);
+        match astar_result {
             AStarResult::Solved { pushes, .. } => SearchOutcome::Solved {
                 pushes,
                 optimal: true,
             },
             AStarResult::Exhausted => SearchOutcome::Exhausted,
             AStarResult::BudgetExceeded => SearchOutcome::BudgetExceeded,
-        },
-        SolverMode::Quality | SolverMode::Optimal => {
-            let astar_result =
-                astar_search(cb, initial, zk, heuristic, deadlocks, budget, counters);
-            match astar_result {
-                AStarResult::Solved { pushes, .. } => SearchOutcome::Solved {
-                    pushes,
-                    optimal: true,
-                },
-                AStarResult::Exhausted => SearchOutcome::Exhausted,
-                AStarResult::BudgetExceeded => {
-                    let ida_result = ida_star_search(
-                        cb, initial, zk, heuristic, deadlocks, budget, counters, None,
-                    );
-                    match ida_result {
-                        IDAStarResult::Solved { pushes, .. } => SearchOutcome::Solved {
-                            pushes,
-                            optimal: true,
-                        },
-                        IDAStarResult::Exhausted => SearchOutcome::Exhausted,
-                        IDAStarResult::BudgetExceeded => SearchOutcome::BudgetExceeded,
-                    }
-                }
-            }
         }
+    } else {
+        SearchOutcome::BudgetExceeded
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn try_beam(
+    cb: &CompiledBoard,
+    initial: &DenseState,
+    zk: &ZobristKeys,
+    heuristic: &mut AssignmentHeuristic,
+    deadlocks: &DeadlockChecker,
+    budget: &mut Budget,
+    counters: &mut SearchCounters,
+) -> Option<SearchOutcome> {
+    let config = BeamConfig::default();
+    match beam_search(cb, initial, zk, heuristic, deadlocks, budget, counters, &config) {
+        BeamResult::Solved { mut incumbents } => {
+            incumbents.sort_by_key(|inc| inc.push_count);
+            let best = incumbents.into_iter().next().unwrap();
+            Some(SearchOutcome::Solved {
+                pushes: best.pushes,
+                optimal: false,
+            })
+        }
+        BeamResult::NoSolution => None,
+        BeamResult::BudgetExceeded => None,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn try_ida_star(
+    cb: &CompiledBoard,
+    initial: &DenseState,
+    zk: &ZobristKeys,
+    heuristic: &mut AssignmentHeuristic,
+    deadlocks: &DeadlockChecker,
+    budget: &mut Budget,
+    counters: &mut SearchCounters,
+    upper_bound: Option<u32>,
+) -> SearchOutcome {
+    match ida_star_search(cb, initial, zk, heuristic, deadlocks, budget, counters, upper_bound) {
+        IDAStarResult::Solved { pushes, .. } => SearchOutcome::Solved {
+            pushes,
+            optimal: true,
+        },
+        IDAStarResult::Exhausted => SearchOutcome::Exhausted,
+        IDAStarResult::BudgetExceeded => SearchOutcome::BudgetExceeded,
     }
 }
 
@@ -418,6 +531,61 @@ mod tests {
                 .collect();
             let verified = verify_solution(&request.board, &steps);
             assert!(verified.is_ok());
+        }
+    }
+
+    #[test]
+    fn solve_6box_uses_beam_path() {
+        // 6 boxes triggers the large-puzzle (beam-first) path
+        // Narrow layout keeps search space manageable in debug builds
+        let request = make_request(&[
+            "OOOOOOO",
+            "OSX R O",
+            "OSX   O",
+            "OSX   O",
+            "OSX   O",
+            "OSX   O",
+            "OSX   O",
+            "OOOOOOO",
+        ]);
+        let result = solve(&request);
+        match result.status {
+            SolverStatus::Solved => {
+                let sol = result.solution.unwrap();
+                assert!(sol.pushes >= 6);
+                assert!(sol.final_snapshot.solved);
+                let steps: Vec<(Direction, bool)> = sol
+                    .steps
+                    .iter()
+                    .map(|s| (s.direction, s.pushed))
+                    .collect();
+                let verified = verify_solution(&request.board, &steps);
+                assert!(verified.is_ok());
+            }
+            other => panic!("expected Solved for 6-box puzzle, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn solve_3box_via_astar_path() {
+        // 3 boxes: small puzzle, takes the A* path
+        let request = make_request(&[
+            "OOOOOOOOO",
+            "O SSS   O",
+            "O       O",
+            "O XXX   O",
+            "O   R   O",
+            "O       O",
+            "OOOOOOOOO",
+        ]);
+        let result = solve(&request);
+        match result.status {
+            SolverStatus::Solved => {
+                let sol = result.solution.unwrap();
+                assert!(sol.pushes >= 3);
+                assert!(sol.final_snapshot.solved);
+            }
+            other => panic!("expected Solved for 3-box puzzle, got {:?}", other),
         }
     }
 }

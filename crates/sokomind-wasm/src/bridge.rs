@@ -88,7 +88,8 @@ pub fn solve_bridge(puzzle_json: &str, options_json: &str) -> String {
     };
 
     let result = solve(&request);
-    serde_json::to_string(&result).unwrap_or_else(|e| error_result(&format!("serialization failed: {}", e)))
+    serde_json::to_string(&result)
+        .unwrap_or_else(|e| error_result(&format!("serialization failed: {}", e)))
 }
 
 fn error_result(message: &str) -> String {

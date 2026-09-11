@@ -20,7 +20,11 @@ pub enum ParseError {
     NoRobot,
     MultipleRobots,
     NoBoxes,
-    LabelMismatch { label: char, boxes: usize, goals: usize },
+    LabelMismatch {
+        label: char,
+        boxes: usize,
+        goals: usize,
+    },
     RobotOnWall,
     BoxOnWall,
     GoalOnWall,
@@ -34,7 +38,11 @@ impl std::fmt::Display for ParseError {
             ParseError::NoRobot => write!(f, "no robot (R) found"),
             ParseError::MultipleRobots => write!(f, "multiple robots found"),
             ParseError::NoBoxes => write!(f, "no boxes found"),
-            ParseError::LabelMismatch { label, boxes, goals } => {
+            ParseError::LabelMismatch {
+                label,
+                boxes,
+                goals,
+            } => {
                 write!(f, "label '{}': {} boxes but {} goals", label, boxes, goals)
             }
             ParseError::RobotOnWall => write!(f, "robot is on a wall"),
@@ -215,7 +223,11 @@ mod tests {
     fn label_mismatch_error() {
         let rows = &["OOOOO", "ORAaO", "OA  O", "OOOOO"];
         match parse_board(rows) {
-            Err(ParseError::LabelMismatch { label, boxes, goals }) => {
+            Err(ParseError::LabelMismatch {
+                label,
+                boxes,
+                goals,
+            }) => {
                 assert_eq!(label, 'A');
                 assert_eq!(boxes, 2);
                 assert_eq!(goals, 1);

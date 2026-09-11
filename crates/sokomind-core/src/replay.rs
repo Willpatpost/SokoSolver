@@ -9,9 +9,7 @@ pub fn encode_action_log(directions: &[Direction]) -> String {
 pub fn decode_action_log(log: &str) -> Result<Vec<Direction>, ReplayError> {
     log.chars()
         .enumerate()
-        .map(|(i, c)| {
-            Direction::from_char(c).ok_or(ReplayError::InvalidChar { index: i, char: c })
-        })
+        .map(|(i, c)| Direction::from_char(c).ok_or(ReplayError::InvalidChar { index: i, char: c }))
         .collect()
 }
 
@@ -36,10 +34,7 @@ impl std::fmt::Display for ReplayError {
 
 impl std::error::Error for ReplayError {}
 
-pub fn replay_action_log(
-    board: &ParsedBoard,
-    log: &str,
-) -> Result<GameSnapshot, ReplayError> {
+pub fn replay_action_log(board: &ParsedBoard, log: &str) -> Result<GameSnapshot, ReplayError> {
     let directions = decode_action_log(log)?;
     let mut snapshot = create_snapshot(board);
 
@@ -61,7 +56,12 @@ mod tests {
 
     #[test]
     fn encode_decode_roundtrip() {
-        let dirs = vec![Direction::Up, Direction::Down, Direction::Left, Direction::Right];
+        let dirs = vec![
+            Direction::Up,
+            Direction::Down,
+            Direction::Left,
+            Direction::Right,
+        ];
         let log = encode_action_log(&dirs);
         assert_eq!(log, "UDLR");
         let decoded = decode_action_log(&log).unwrap();
@@ -72,7 +72,10 @@ mod tests {
     fn decode_invalid_char() {
         assert_eq!(
             decode_action_log("UDZ"),
-            Err(ReplayError::InvalidChar { index: 2, char: 'Z' })
+            Err(ReplayError::InvalidChar {
+                index: 2,
+                char: 'Z'
+            })
         );
     }
 

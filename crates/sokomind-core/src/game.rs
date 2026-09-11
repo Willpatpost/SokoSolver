@@ -33,17 +33,12 @@ pub fn step_snapshot(
         return blocked(snapshot);
     }
 
-    let pushed_box_index = snapshot
-        .boxes
-        .iter()
-        .position(|b| b.position == target);
+    let pushed_box_index = snapshot.boxes.iter().position(|b| b.position == target);
 
     if let Some(box_idx) = pushed_box_index {
         let push_target = target.offset(direction);
 
-        if is_wall(board, push_target)
-            || snapshot.boxes.iter().any(|b| b.position == push_target)
-        {
+        if is_wall(board, push_target) || snapshot.boxes.iter().any(|b| b.position == push_target) {
             return blocked(snapshot);
         }
 
@@ -117,9 +112,10 @@ fn can_occupy(board: &ParsedBoard, pos: Position, _label: Label) -> bool {
 
 fn check_solved(board: &ParsedBoard, boxes: &[BoxEntity]) -> bool {
     boxes.iter().all(|b| {
-        board.goals.iter().any(|g| {
-            g.position == b.position && g.label == b.label
-        })
+        board
+            .goals
+            .iter()
+            .any(|g| g.position == b.position && g.label == b.label)
     })
 }
 

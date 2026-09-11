@@ -12,9 +12,7 @@ impl Label {
     pub fn from_box_char(c: char) -> Option<Label> {
         match c {
             'X' => Some(Label::GENERIC),
-            'A'..='N' | 'P'..='Q' | 'T'..='W' | 'Y'..='Z' => {
-                Some(Label((c as u8) - b'A' + 1))
-            }
+            'A'..='N' | 'P'..='Q' | 'T'..='W' | 'Y'..='Z' => Some(Label((c as u8) - b'A' + 1)),
             _ => None,
         }
     }
@@ -22,9 +20,7 @@ impl Label {
     pub fn from_goal_char(c: char) -> Option<Label> {
         match c {
             'S' => Some(Label::GENERIC),
-            'a'..='n' | 'p'..='q' | 't'..='w' | 'y'..='z' => {
-                Some(Label((c as u8) - b'a' + 1))
-            }
+            'a'..='n' | 'p'..='q' | 't'..='w' | 'y'..='z' => Some(Label((c as u8) - b'a' + 1)),
             _ => None,
         }
     }

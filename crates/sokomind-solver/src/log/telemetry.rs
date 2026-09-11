@@ -45,18 +45,36 @@ impl TelemetryCounters {
         m.insert("peak_frontier".into(), self.peak_frontier as f64);
         m.insert("peak_memory_bytes".into(), self.peak_memory_bytes as f64);
         m.insert("deadlock.static".into(), self.deadlock_static_prunes as f64);
-        m.insert("deadlock.two_by_two".into(), self.deadlock_two_by_two_prunes as f64);
+        m.insert(
+            "deadlock.two_by_two".into(),
+            self.deadlock_two_by_two_prunes as f64,
+        );
         m.insert("deadlock.freeze".into(), self.deadlock_freeze_prunes as f64);
-        m.insert("deadlock.pattern".into(), self.deadlock_pattern_prunes as f64);
-        m.insert("deadlock.pi_corral".into(), self.deadlock_pi_corral_prunes as f64);
+        m.insert(
+            "deadlock.pattern".into(),
+            self.deadlock_pattern_prunes as f64,
+        );
+        m.insert(
+            "deadlock.pi_corral".into(),
+            self.deadlock_pi_corral_prunes as f64,
+        );
         m.insert("deadlock.table".into(), self.deadlock_table_prunes as f64);
         m.insert("heuristic.calls".into(), self.heuristic_calls as f64);
-        m.insert("heuristic.cache_hits".into(), self.heuristic_cache_hits as f64);
+        m.insert(
+            "heuristic.cache_hits".into(),
+            self.heuristic_cache_hits as f64,
+        );
         m.insert("macro.forced_push".into(), self.macro_forced_push as f64);
         m.insert("macro.tunnel".into(), self.macro_tunnel as f64);
         m.insert("macro.goal".into(), self.macro_goal as f64);
-        m.insert("transposition.unique".into(), self.transposition_unique as f64);
-        m.insert("transposition.duplicate".into(), self.transposition_duplicate as f64);
+        m.insert(
+            "transposition.unique".into(),
+            self.transposition_unique as f64,
+        );
+        m.insert(
+            "transposition.duplicate".into(),
+            self.transposition_duplicate as f64,
+        );
         m
     }
 }

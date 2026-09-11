@@ -48,7 +48,12 @@ mod tests {
 
     #[test]
     fn fingerprint_deterministic() {
-        let rows = vec!["OOOOO".into(), "OR XO".into(), "O  SO".into(), "OOOOO".into()];
+        let rows = vec![
+            "OOOOO".into(),
+            "OR XO".into(),
+            "O  SO".into(),
+            "OOOOO".into(),
+        ];
         let f1 = puzzle_fingerprint(&rows, 1);
         let f2 = puzzle_fingerprint(&rows, 1);
         assert_eq!(f1, f2);
@@ -56,8 +61,18 @@ mod tests {
 
     #[test]
     fn fingerprint_changes_with_content() {
-        let rows1 = vec!["OOOOO".into(), "OR XO".into(), "O  SO".into(), "OOOOO".into()];
-        let rows2 = vec!["OOOOO".into(), "O RXO".into(), "O  SO".into(), "OOOOO".into()];
+        let rows1 = vec![
+            "OOOOO".into(),
+            "OR XO".into(),
+            "O  SO".into(),
+            "OOOOO".into(),
+        ];
+        let rows2 = vec![
+            "OOOOO".into(),
+            "O RXO".into(),
+            "O  SO".into(),
+            "OOOOO".into(),
+        ];
         assert_ne!(puzzle_fingerprint(&rows1, 1), puzzle_fingerprint(&rows2, 1));
     }
 
@@ -67,7 +82,12 @@ mod tests {
             id: "test-1".into(),
             title: "Test Puzzle".into(),
             difficulty: Difficulty::Tutorial,
-            rows: vec!["OOOOO".into(), "OR XO".into(), "O  SO".into(), "OOOOO".into()],
+            rows: vec![
+                "OOOOO".into(),
+                "OR XO".into(),
+                "O  SO".into(),
+                "OOOOO".into(),
+            ],
             boxes: 1,
             hint: None,
             collection: None,

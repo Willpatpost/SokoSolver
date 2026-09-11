@@ -80,6 +80,56 @@ pub fn can_reach(cb: &CompiledBoard, start: u16, target: u16, box_cells: &[u16])
     false
 }
 
+/// Find the shortest walk path from `start` to `target`, returning the
+/// sequence of directions. Returns None if unreachable.
+pub fn find_keeper_path(
+    cb: &CompiledBoard,
+    start: u16,
+    target: u16,
+    box_cells: &[u16],
+) -> Option<Vec<Direction>> {
+    if start == target {
+        return Some(Vec::new());
+    }
+    if start == INVALID_CELL || target == INVALID_CELL {
+        return None;
+    }
+
+    let mut parent: Vec<(u16, Direction)> = vec![(INVALID_CELL, Direction::Up); cb.cell_count as usize];
+    let mut visited = vec![false; cb.cell_count as usize];
+    let mut queue = VecDeque::new();
+    visited[start as usize] = true;
+    queue.push_back(start);
+
+    while let Some(cell) = queue.pop_front() {
+        for dir in Direction::ALL {
+            let n = cb.neighbor(cell, dir);
+            if n == INVALID_CELL || visited[n as usize] {
+                continue;
+            }
+            if box_cells.binary_search(&n).is_ok() {
+                continue;
+            }
+            visited[n as usize] = true;
+            parent[n as usize] = (cell, dir);
+            if n == target {
+                let mut path = Vec::new();
+                let mut cur = target;
+                while cur != start {
+                    let (prev, d) = parent[cur as usize];
+                    path.push(d);
+                    cur = prev;
+                }
+                path.reverse();
+                return Some(path);
+            }
+            queue.push_back(n);
+        }
+    }
+
+    None
+}
+
 /// Compute shortest keeper path length from `start` to `target`.
 /// Returns None if unreachable.
 pub fn keeper_distance(

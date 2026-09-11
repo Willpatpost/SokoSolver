@@ -64,14 +64,17 @@ pub fn astar_search(
     let mut closed = rustc_hash::FxHashMap::default();
 
     tt.insert(init_hash, 0, 0);
-    open.push(h, AStarNode {
-        state: initial.clone(),
-        parent_hash: None,
-        push_dir: None,
-        push_box_idx: None,
-        g_cost: 0,
-        hash: init_hash,
-    });
+    open.push(
+        h,
+        AStarNode {
+            state: initial.clone(),
+            parent_hash: None,
+            push_dir: None,
+            push_box_idx: None,
+            g_cost: 0,
+            hash: init_hash,
+        },
+    );
 
     while let Some((_, node)) = open.pop() {
         if budget.exhausted() {
@@ -88,11 +91,14 @@ pub fn astar_search(
         budget.tick_expanded();
         counters.expanded += 1;
 
-        closed.insert(node.hash, ClosedEntry {
-            parent_hash: node.parent_hash,
-            push_dir: node.push_dir,
-            push_box_idx: node.push_box_idx,
-        });
+        closed.insert(
+            node.hash,
+            ClosedEntry {
+                parent_hash: node.parent_hash,
+                push_dir: node.push_dir,
+                push_box_idx: node.push_box_idx,
+            },
+        );
 
         if node.state.is_solved(cb) {
             let path = reconstruct_path(&closed, node.hash);
@@ -128,14 +134,17 @@ pub fn astar_search(
 
             let f = g.saturating_add(h);
 
-            open.push(f, AStarNode {
-                state: succ.state,
-                parent_hash: Some(node.hash),
-                push_dir: Some(succ.direction),
-                push_box_idx: Some(succ.box_index),
-                g_cost: g,
-                hash: succ_hash,
-            });
+            open.push(
+                f,
+                AStarNode {
+                    state: succ.state,
+                    parent_hash: Some(node.hash),
+                    push_dir: Some(succ.direction),
+                    push_box_idx: Some(succ.box_index),
+                    g_cost: g,
+                    hash: succ_hash,
+                },
+            );
         }
 
         counters.update_peak_frontier(open.len() as u64);
@@ -209,49 +218,54 @@ mod tests {
             AStarResult::Solved { pushes, .. } => {
                 assert!(!pushes.is_empty());
             }
-            other => panic!("expected Solved, got {:?}", match other {
-                AStarResult::Exhausted => "Exhausted",
-                AStarResult::BudgetExceeded => "BudgetExceeded",
-                _ => "?",
-            }),
+            other => panic!(
+                "expected Solved, got {:?}",
+                match other {
+                    AStarResult::Exhausted => "Exhausted",
+                    AStarResult::BudgetExceeded => "BudgetExceeded",
+                    _ => "?",
+                }
+            ),
         }
     }
 
     #[test]
     fn solve_2box() {
         let rows = &[
-            "OOOOOOO",
-            "OSS   O",
-            "O     O",
-            "O XX  O",
-            "O  R  O",
-            "O     O",
-            "OOOOOOO",
+            "OOOOOOO", "OSS   O", "O     O", "O XX  O", "O  R  O", "O     O", "OOOOOOO",
         ];
         match solve_puzzle(rows) {
             AStarResult::Solved { pushes, .. } => {
                 assert!(pushes.len() >= 2);
             }
-            other => panic!("expected Solved, got {:?}", match other {
-                AStarResult::Exhausted => "Exhausted",
-                AStarResult::BudgetExceeded => "BudgetExceeded",
-                _ => "?",
-            }),
+            other => panic!(
+                "expected Solved, got {:?}",
+                match other {
+                    AStarResult::Exhausted => "Exhausted",
+                    AStarResult::BudgetExceeded => "BudgetExceeded",
+                    _ => "?",
+                }
+            ),
         }
     }
 
     #[test]
     fn solve_typed_labels() {
-        let rows = &["OOOOOOO", "O a   O", "O AR  O", "O B   O", "O   b O", "OOOOOOO"];
+        let rows = &[
+            "OOOOOOO", "O a   O", "O AR  O", "O B   O", "O   b O", "OOOOOOO",
+        ];
         match solve_puzzle(rows) {
             AStarResult::Solved { pushes, .. } => {
                 assert!(pushes.len() >= 2);
             }
-            other => panic!("expected Solved, got {:?}", match other {
-                AStarResult::Exhausted => "Exhausted",
-                AStarResult::BudgetExceeded => "BudgetExceeded",
-                _ => "?",
-            }),
+            other => panic!(
+                "expected Solved, got {:?}",
+                match other {
+                    AStarResult::Exhausted => "Exhausted",
+                    AStarResult::BudgetExceeded => "BudgetExceeded",
+                    _ => "?",
+                }
+            ),
         }
     }
 

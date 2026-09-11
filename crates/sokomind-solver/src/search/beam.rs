@@ -171,7 +171,11 @@ pub fn beam_search(
             }
         }
 
-        candidates.sort_by(|a, b| a.f_cost.cmp(&b.f_cost).then(a.state.moves.cmp(&b.state.moves)));
+        candidates.sort_by(|a, b| {
+            a.f_cost
+                .cmp(&b.f_cost)
+                .then(a.state.moves.cmp(&b.state.moves))
+        });
         candidates.truncate(config.beam_width);
         counters.update_peak_frontier(candidates.len() as u64);
 
@@ -267,7 +271,9 @@ mod tests {
 
     #[test]
     fn beam_solve_typed() {
-        let rows = &["OOOOOOO", "O a   O", "O AR  O", "O B   O", "O   b O", "OOOOOOO"];
+        let rows = &[
+            "OOOOOOO", "O a   O", "O AR  O", "O B   O", "O   b O", "OOOOOOO",
+        ];
         let (result, _) = run_beam(rows, BeamConfig::default());
         match result {
             BeamResult::Solved { incumbents } => {

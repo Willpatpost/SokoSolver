@@ -26,7 +26,11 @@ pub fn generate_successors(cb: &CompiledBoard, state: &DenseState) -> Vec<PushSu
                 continue;
             }
 
-            if state.box_cells.binary_search_by_key(&target, |&(c, _)| c).is_ok() {
+            if state
+                .box_cells
+                .binary_search_by_key(&target, |&(c, _)| c)
+                .is_ok()
+            {
                 continue;
             }
 
@@ -35,7 +39,11 @@ pub fn generate_successors(cb: &CompiledBoard, state: &DenseState) -> Vec<PushSu
                 continue;
             }
 
-            if state.box_cells.binary_search_by_key(&push_from, |&(c, _)| c).is_ok() {
+            if state
+                .box_cells
+                .binary_search_by_key(&push_from, |&(c, _)| c)
+                .is_ok()
+            {
                 continue;
             }
 

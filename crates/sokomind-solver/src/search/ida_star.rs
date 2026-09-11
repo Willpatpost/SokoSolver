@@ -114,9 +114,7 @@ fn dfs(
     let f = g.saturating_add(h);
 
     if f > threshold {
-        return DfsResult::NotFound {
-            next_threshold: f,
-        };
+        return DfsResult::NotFound { next_threshold: f };
     }
 
     budget.tick_expanded();

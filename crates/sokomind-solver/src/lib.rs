@@ -9,6 +9,7 @@ pub mod dense_state;
 pub mod exact_state;
 pub mod heuristic;
 pub mod improvement;
+pub mod linear_conflict;
 pub mod log;
 pub mod macros;
 pub mod pipeline;

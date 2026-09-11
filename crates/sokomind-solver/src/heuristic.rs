@@ -3,6 +3,7 @@ use rustc_hash::FxHashMap;
 use crate::assignment::hungarian;
 use crate::compiled_board::CompiledBoard;
 use crate::dense_state::DenseState;
+use crate::linear_conflict::count_linear_conflicts;
 use sokomind_core::types::Label;
 
 /// Assignment-based admissible heuristic.
@@ -97,6 +98,8 @@ impl AssignmentHeuristic {
             let (group_cost, _) = hungarian(&cost_matrix);
             total = total.saturating_add(group_cost);
         }
+
+        total = total.saturating_add(count_linear_conflicts(cb, state));
 
         total
     }

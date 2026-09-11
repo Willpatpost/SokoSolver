@@ -81,6 +81,7 @@ pub struct SolverResult {
     pub solution: Option<Solution>,
     pub metrics: SolverMetrics,
     pub proof: Option<SolverProof>,
+    pub telemetry: crate::log::TelemetryCounters,
     pub phase_reports: Vec<crate::log::PhaseReport>,
 }
 
@@ -131,6 +132,8 @@ pub fn solve(request: &SolverRequest) -> SolverResult {
         deadlock_prunes: total_deadlock_prunes,
     };
 
+    let telemetry = counters.to_telemetry(0);
+
     match search_result {
         SearchOutcome::Solved {
             mut pushes,
@@ -157,6 +160,7 @@ pub fn solve(request: &SolverRequest) -> SolverResult {
                         solution: Some(solution),
                         metrics,
                         proof,
+                        telemetry: telemetry.clone(),
                         phase_reports: logger.into_reports(),
                     }
                 }
@@ -169,6 +173,7 @@ pub fn solve(request: &SolverRequest) -> SolverResult {
                         solution: None,
                         metrics,
                         proof: None,
+                        telemetry: telemetry.clone(),
                         phase_reports: logger.into_reports(),
                     }
                 }
@@ -181,6 +186,7 @@ pub fn solve(request: &SolverRequest) -> SolverResult {
             solution: None,
             metrics,
             proof: Some(crate::proof::unsolvable_proof()),
+            telemetry: telemetry.clone(),
             phase_reports: logger.into_reports(),
         },
         SearchOutcome::BudgetExceeded => SolverResult {
@@ -190,6 +196,7 @@ pub fn solve(request: &SolverRequest) -> SolverResult {
             solution: None,
             metrics,
             proof: None,
+            telemetry,
             phase_reports: logger.into_reports(),
         },
     }

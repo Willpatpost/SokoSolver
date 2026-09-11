@@ -6,10 +6,11 @@ use crate::counters::SearchCounters;
 use crate::deadlock::DeadlockChecker;
 use crate::dense_state::DenseState;
 use crate::heuristic::AssignmentHeuristic;
+use crate::macros::MacroEngine;
 use crate::transposition::TranspositionTable;
 use crate::zobrist::ZobristKeys;
 
-use super::successors::generate_successors;
+use super::successors::generate_successors_with_macros;
 
 pub struct BeamConfig {
     pub beam_width: usize,
@@ -68,6 +69,7 @@ pub fn beam_search(
     zk: &ZobristKeys,
     heuristic: &mut AssignmentHeuristic,
     deadlocks: &DeadlockChecker,
+    macros: &MacroEngine,
     budget: &mut Budget,
     counters: &mut SearchCounters,
     config: &BeamConfig,
@@ -118,7 +120,8 @@ pub fn beam_search(
             budget.tick_expanded();
             counters.expanded += 1;
 
-            let successors = generate_successors(cb, &entry.state);
+            let successors =
+                generate_successors_with_macros(cb, &entry.state, Some(macros), Some(counters));
             counters.generated += successors.len() as u64;
             budget.tick_generated(successors.len() as u64);
 
@@ -133,7 +136,7 @@ pub fn beam_search(
                 }
 
                 let succ_hash = succ.state.zobrist_hash(zk);
-                let g = entry.g_cost + 1;
+                let g = entry.g_cost + succ.push_count;
 
                 if !tt.insert(succ_hash, g, succ.state.moves) {
                     counters.transposition_duplicate += 1;
@@ -223,6 +226,7 @@ mod tests {
         let zk = ZobristKeys::new(&cb, Some(42));
         let mut heuristic = AssignmentHeuristic::new(&cb);
         let deadlocks = DeadlockChecker::new(&cb);
+        let macros = MacroEngine::new(&cb);
         let limits = SolverLimits {
             max_time_ms: Some(10_000),
             max_expanded_states: Some(500_000),
@@ -239,6 +243,7 @@ mod tests {
             &zk,
             &mut heuristic,
             &deadlocks,
+            &macros,
             &mut budget,
             &mut counters,
             &config,

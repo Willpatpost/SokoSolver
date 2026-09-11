@@ -10,6 +10,7 @@ use crate::deadlock::DeadlockChecker;
 use crate::dense_state::DenseState;
 use crate::heuristic::AssignmentHeuristic;
 use crate::log::PhaseLogger;
+use crate::macros::MacroEngine;
 use crate::reachability::find_keeper_path;
 use crate::search::astar::{astar_search, AStarResult};
 use crate::search::beam::{beam_search, BeamConfig, BeamResult};
@@ -92,6 +93,7 @@ pub fn solve(request: &SolverRequest) -> SolverResult {
     let zk = ZobristKeys::new(&cb, seed);
     let mut heuristic = AssignmentHeuristic::new(&cb);
     let deadlocks = DeadlockChecker::new(&cb);
+    let macros = MacroEngine::new(&cb);
     let initial = DenseState::from_initial(&cb);
     let mut budget = Budget::new(&request.limits);
     let mut counters = SearchCounters::default();
@@ -105,6 +107,7 @@ pub fn solve(request: &SolverRequest) -> SolverResult {
         &zk,
         &mut heuristic,
         &deadlocks,
+        &macros,
         &mut budget,
         &mut counters,
         &request.options.mode,
@@ -205,17 +208,18 @@ fn run_search(
     zk: &ZobristKeys,
     heuristic: &mut AssignmentHeuristic,
     deadlocks: &DeadlockChecker,
+    macros: &MacroEngine,
     budget: &mut Budget,
     counters: &mut SearchCounters,
     mode: &SolverMode,
 ) -> SearchOutcome {
     if is_small_puzzle(cb) {
         run_small_puzzle_search(
-            cb, initial, zk, heuristic, deadlocks, budget, counters, mode,
+            cb, initial, zk, heuristic, deadlocks, macros, budget, counters, mode,
         )
     } else {
         run_large_puzzle_search(
-            cb, initial, zk, heuristic, deadlocks, budget, counters, mode,
+            cb, initial, zk, heuristic, deadlocks, macros, budget, counters, mode,
         )
     }
 }
@@ -228,6 +232,7 @@ fn run_small_puzzle_search(
     zk: &ZobristKeys,
     heuristic: &mut AssignmentHeuristic,
     deadlocks: &DeadlockChecker,
+    macros: &MacroEngine,
     budget: &mut Budget,
     counters: &mut SearchCounters,
     mode: &SolverMode,
@@ -241,7 +246,9 @@ fn run_small_puzzle_search(
         AStarResult::Exhausted => SearchOutcome::Exhausted,
         AStarResult::BudgetExceeded => {
             heuristic.clear_cache();
-            let beam_result = try_beam(cb, initial, zk, heuristic, deadlocks, budget, counters);
+            let beam_result = try_beam(
+                cb, initial, zk, heuristic, deadlocks, macros, budget, counters,
+            );
             if let Some(outcome) = beam_result {
                 return outcome;
             }
@@ -265,11 +272,14 @@ fn run_large_puzzle_search(
     zk: &ZobristKeys,
     heuristic: &mut AssignmentHeuristic,
     deadlocks: &DeadlockChecker,
+    macros: &MacroEngine,
     budget: &mut Budget,
     counters: &mut SearchCounters,
     mode: &SolverMode,
 ) -> SearchOutcome {
-    let beam_result = try_beam(cb, initial, zk, heuristic, deadlocks, budget, counters);
+    let beam_result = try_beam(
+        cb, initial, zk, heuristic, deadlocks, macros, budget, counters,
+    );
     if let Some(outcome) = beam_result {
         if let SearchOutcome::Solved { ref pushes, .. } = outcome {
             if matches!(mode, SolverMode::Quality | SolverMode::Optimal) && !budget.exhausted() {
@@ -323,12 +333,13 @@ fn try_beam(
     zk: &ZobristKeys,
     heuristic: &mut AssignmentHeuristic,
     deadlocks: &DeadlockChecker,
+    macros: &MacroEngine,
     budget: &mut Budget,
     counters: &mut SearchCounters,
 ) -> Option<SearchOutcome> {
     let config = BeamConfig::default();
     match beam_search(
-        cb, initial, zk, heuristic, deadlocks, budget, counters, &config,
+        cb, initial, zk, heuristic, deadlocks, macros, budget, counters, &config,
     ) {
         BeamResult::Solved { mut incumbents } => {
             incumbents.sort_by_key(|inc| inc.push_count);

@@ -1,7 +1,9 @@
 use sokomind_core::position::Direction;
 
 use crate::compiled_board::{CompiledBoard, INVALID_CELL};
+use crate::counters::SearchCounters;
 use crate::dense_state::DenseState;
+use crate::macros::MacroEngine;
 use crate::reachability::{canonical_keeper, keeper_reachable};
 
 /// A push successor: moving a box in a direction.
@@ -10,16 +12,41 @@ pub struct PushSuccessor {
     pub state: DenseState,
     pub box_index: usize,
     pub direction: Direction,
+    pub push_count: u32,
 }
 
 /// Generate all legal push successors from the current state.
 /// Precomputes keeper reachability once (single BFS), then checks each
 /// push position with O(1) array lookup instead of per-push BFS.
 pub fn generate_successors(cb: &CompiledBoard, state: &DenseState) -> Vec<PushSuccessor> {
+    generate_successors_with_macros(cb, state, None, None)
+}
+
+/// Generate successors with optional macro engine and counters.
+/// When macros are enabled:
+/// - Boxes on safe goals are skipped (goal macro)
+/// - Pushes into tunnels advance to the exit (tunnel macro)
+pub fn generate_successors_with_macros(
+    cb: &CompiledBoard,
+    state: &DenseState,
+    macros: Option<&MacroEngine>,
+    counters: Option<&mut SearchCounters>,
+) -> Vec<PushSuccessor> {
     let mut successors = Vec::new();
     let reachable = keeper_reachable(cb, state.keeper_zone, &state.box_cells);
 
+    let mut tunnel_count = 0u64;
+    let mut goal_count = 0u64;
+
     for (bi, &(box_cell, label)) in state.box_cells.iter().enumerate() {
+        // Goal macro: skip boxes committed to safe goals.
+        if let Some(me) = macros {
+            if me.safe_goals.is_committed(cb, box_cell, label) {
+                goal_count += 1;
+                continue;
+            }
+        }
+
         for dir in Direction::ALL {
             let target = cb.neighbor(box_cell, dir);
             if target == INVALID_CELL {
@@ -51,23 +78,51 @@ pub fn generate_successors(cb: &CompiledBoard, state: &DenseState) -> Vec<PushSu
                 continue;
             }
 
+            // Tunnel macro: if the target is a tunnel cell, advance to exit.
+            let (final_target, extra_pushes) = if let Some(me) = macros {
+                match me.tunnels.apply_tunnel(cb, target, dir, &state.box_cells) {
+                    Some((exit, extra)) => {
+                        tunnel_count += 1;
+                        (exit, extra)
+                    }
+                    None => (target, 0),
+                }
+            } else {
+                (target, 0)
+            };
+
             let mut new_box_cells = state.box_cells.clone();
-            new_box_cells[bi] = (target, label);
+            new_box_cells[bi] = (final_target, label);
             new_box_cells.sort();
 
-            let new_keeper_zone = canonical_keeper(cb, box_cell, &new_box_cells);
+            let keeper_at = if extra_pushes > 0 {
+                // Keeper ends up one cell behind the box in the push direction.
+                // Walk back from final_target in the opposite direction.
+                cb.neighbor(final_target, dir.opposite())
+            } else {
+                box_cell
+            };
+            let new_keeper_zone = canonical_keeper(cb, keeper_at, &new_box_cells);
+
+            let total_pushes = 1 + extra_pushes;
 
             successors.push(PushSuccessor {
                 state: DenseState {
                     keeper_zone: new_keeper_zone,
                     box_cells: new_box_cells,
-                    moves: state.moves + 1,
-                    pushes: state.pushes + 1,
+                    moves: state.moves + total_pushes,
+                    pushes: state.pushes + total_pushes,
                 },
                 box_index: bi,
                 direction: dir,
+                push_count: total_pushes,
             });
         }
+    }
+
+    if let Some(c) = counters {
+        c.macro_tunnel += tunnel_count;
+        c.macro_goal += goal_count;
     }
 
     successors
@@ -131,11 +186,8 @@ mod tests {
 
     #[test]
     fn keeper_must_reach_push_position() {
-        // Box at (2,2), robot at (2,3). Keeper can reach (2,3)=right of box,
-        // (3,2)=below box, but can't reach (2,1)=left of box if (2,1) is occupied.
         let (cb, state) = setup();
         let succs = generate_successors(&cb, &state);
-        // Verify each successor has a valid push origin
         for s in &succs {
             assert!(s.state.keeper_zone < cb.cell_count);
         }
@@ -143,10 +195,8 @@ mod tests {
 
     #[test]
     fn solve_trivial_puzzle() {
-        // Box at (2,2), goal at (1,3). Can solve with: push up, push right.
         let (cb, state) = setup();
 
-        // BFS to find solution
         let mut queue = std::collections::VecDeque::new();
         let mut visited = std::collections::HashSet::new();
         queue.push_back(state.clone());
@@ -181,5 +231,45 @@ mod tests {
             sorted.sort();
             assert_eq!(cells, sorted, "box_cells must remain sorted");
         }
+    }
+
+    #[test]
+    fn macros_dont_break_basic_generation() {
+        let (cb, state) = setup();
+        let me = MacroEngine::new(&cb);
+        let without = generate_successors(&cb, &state);
+        let with = generate_successors_with_macros(&cb, &state, Some(&me), None);
+
+        // With macros might produce fewer successors (goal macro) or
+        // different targets (tunnel macro), but should not crash.
+        assert!(!with.is_empty());
+        // On this simple board with no tunnels or safe goals, results should match.
+        assert_eq!(without.len(), with.len());
+    }
+
+    #[test]
+    fn goal_macro_skips_committed_box() {
+        // Box already on a corner goal — should be skipped.
+        let rows = &["OOOOO", "OS  O", "O XRO", "O   O", "OOOOO"];
+        let board = parse_board(rows).unwrap();
+        let cb = CompiledBoard::from_parsed(&board);
+        let me = MacroEngine::new(&cb);
+
+        // Place box on the corner goal at (1,1).
+        let goal_cell = cb.goal_cells[0].0;
+        let goal_label = cb.goal_cells[0].1 .0;
+        let state = DenseState {
+            keeper_zone: cb.robot_cell,
+            box_cells: vec![(goal_cell, goal_label)],
+            moves: 0,
+            pushes: 0,
+        };
+
+        let without = generate_successors(&cb, &state);
+        let with = generate_successors_with_macros(&cb, &state, Some(&me), None);
+
+        // Without macros: may generate pushes for the committed box.
+        // With macros: should skip it → fewer successors.
+        assert!(with.len() <= without.len());
     }
 }

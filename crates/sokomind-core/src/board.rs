@@ -7,11 +7,27 @@ pub struct ParsedBoard {
     pub width: u16,
     pub height: u16,
     pub rows: Vec<String>,
+    /// Flat row-major grid: true = wall or out-of-bounds. `wall_grid[row * width + col]`.
+    pub wall_grid: Vec<bool>,
     pub walls: Vec<Position>,
     pub floor: Vec<Position>,
     pub goals: Vec<Goal>,
     pub initial_robot: Position,
     pub initial_boxes: Vec<BoxEntity>,
+}
+
+impl ParsedBoard {
+    #[inline]
+    pub fn is_wall(&self, pos: Position) -> bool {
+        if pos.row < 0
+            || pos.col < 0
+            || pos.row >= self.height as i16
+            || pos.col >= self.width as i16
+        {
+            return true;
+        }
+        self.wall_grid[pos.row as usize * self.width as usize + pos.col as usize]
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -175,10 +191,16 @@ pub fn parse_board(rows: &[&str]) -> Result<ParsedBoard, ParseError> {
         }
     }
 
+    let mut wall_grid = vec![false; (width as usize) * (height as usize)];
+    for &w in &walls {
+        wall_grid[w.row as usize * width as usize + w.col as usize] = true;
+    }
+
     Ok(ParsedBoard {
         width,
         height,
         rows: padded_rows,
+        wall_grid,
         walls,
         floor,
         goals,
@@ -242,5 +264,18 @@ mod tests {
         let board = parse_board(rows).unwrap();
         assert_eq!(board.width, 5);
         assert!(board.rows.iter().all(|r| r.len() == 5));
+    }
+
+    #[test]
+    fn wall_grid_o1_lookup() {
+        let rows = &["OOOOO", "O  SO", "O XRO", "O   O", "OOOOO"];
+        let board = parse_board(rows).unwrap();
+        assert!(board.is_wall(Position::new(0, 0)));
+        assert!(board.is_wall(Position::new(0, 4)));
+        assert!(board.is_wall(Position::new(4, 2)));
+        assert!(!board.is_wall(Position::new(1, 1)));
+        assert!(!board.is_wall(Position::new(2, 3)));
+        assert!(board.is_wall(Position::new(-1, 0)));
+        assert!(board.is_wall(Position::new(0, 99)));
     }
 }

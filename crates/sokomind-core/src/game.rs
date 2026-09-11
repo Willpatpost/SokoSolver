@@ -29,7 +29,7 @@ pub fn step_snapshot(
 ) -> SnapshotTransition {
     let target = snapshot.robot.offset(direction);
 
-    if is_wall(board, target) {
+    if board.is_wall(target) {
         return blocked(snapshot);
     }
 
@@ -38,7 +38,7 @@ pub fn step_snapshot(
     if let Some(box_idx) = pushed_box_index {
         let push_target = target.offset(direction);
 
-        if is_wall(board, push_target) || snapshot.boxes.iter().any(|b| b.position == push_target) {
+        if board.is_wall(push_target) || snapshot.boxes.iter().any(|b| b.position == push_target) {
             return blocked(snapshot);
         }
 
@@ -90,24 +90,8 @@ fn blocked(snapshot: &GameSnapshot) -> SnapshotTransition {
     }
 }
 
-fn is_wall(board: &ParsedBoard, pos: Position) -> bool {
-    if pos.row < 0 || pos.col < 0 || pos.row >= board.height as i16 || pos.col >= board.width as i16
-    {
-        return true;
-    }
-    let ch = board.rows[pos.row as usize]
-        .chars()
-        .nth(pos.col as usize)
-        .unwrap_or('O');
-    ch == 'O'
-}
-
-/// Check if a box with the given label may rest on this position.
-/// Generic boxes (X) can only be on generic goals (S) or floor.
-/// Typed boxes can only be on their matching goal or floor.
-/// A goal cell of a different label rejects the box.
 fn can_occupy(board: &ParsedBoard, pos: Position, _label: Label) -> bool {
-    !is_wall(board, pos)
+    !board.is_wall(pos)
 }
 
 fn check_solved(board: &ParsedBoard, boxes: &[BoxEntity]) -> bool {

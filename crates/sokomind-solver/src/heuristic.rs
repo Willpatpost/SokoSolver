@@ -3,15 +3,19 @@ use rustc_hash::FxHashMap;
 use crate::assignment::hungarian;
 use crate::compiled_board::CompiledBoard;
 use crate::dense_state::DenseState;
+use crate::interaction_boost::count_interaction_penalties;
 use crate::linear_conflict::count_linear_conflicts;
+use crate::pattern_database::PatternDatabase;
 use sokomind_core::types::Label;
 
 /// Assignment-based admissible heuristic.
 /// Computes minimum-cost box-goal assignment using reverse-push distances.
+/// Enhanced with linear conflict, interaction boost, and pattern database.
 /// Caches results by a hash of box positions.
 pub struct AssignmentHeuristic {
     cache: FxHashMap<u64, u32>,
     goal_groups: Vec<GoalGroup>,
+    pdb: PatternDatabase,
 }
 
 struct GoalGroup {
@@ -34,9 +38,12 @@ impl AssignmentHeuristic {
             })
             .collect();
 
+        let pdb = PatternDatabase::build(cb);
+
         Self {
             cache: FxHashMap::default(),
             goal_groups,
+            pdb,
         }
     }
 
@@ -100,6 +107,13 @@ impl AssignmentHeuristic {
         }
 
         total = total.saturating_add(count_linear_conflicts(cb, state));
+
+        let pdb_cost = self.pdb.evaluate(cb, &state.box_cells);
+        if pdb_cost > total {
+            total = pdb_cost;
+        }
+
+        total = total.saturating_add(count_interaction_penalties(cb, &state.box_cells));
 
         total
     }

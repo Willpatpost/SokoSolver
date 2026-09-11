@@ -1,5 +1,6 @@
 use std::time::Instant;
 
+use crate::cancellation::CancelToken;
 use crate::config::SolverLimits;
 
 /// Tracks time, state, and memory budgets during search.
@@ -8,6 +9,7 @@ pub struct Budget {
     limits: SolverLimits,
     expanded: u64,
     generated: u64,
+    cancel: CancelToken,
 }
 
 impl Budget {
@@ -17,7 +19,22 @@ impl Budget {
             limits: limits.clone(),
             expanded: 0,
             generated: 0,
+            cancel: CancelToken::new(),
         }
+    }
+
+    pub fn with_cancel(limits: &SolverLimits, cancel: CancelToken) -> Self {
+        Self {
+            start: Instant::now(),
+            limits: limits.clone(),
+            expanded: 0,
+            generated: 0,
+            cancel,
+        }
+    }
+
+    pub fn cancel_handle(&self) -> CancelToken {
+        self.cancel.clone()
     }
 
     pub fn tick_expanded(&mut self) {
@@ -33,6 +50,9 @@ impl Budget {
     }
 
     pub fn exhausted(&self) -> bool {
+        if self.cancel.is_cancelled() {
+            return true;
+        }
         if let Some(max_ms) = self.limits.max_time_ms {
             if self.elapsed_ms() >= max_ms as f64 {
                 return true;
@@ -49,6 +69,10 @@ impl Budget {
             }
         }
         false
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.cancel.is_cancelled()
     }
 
     pub fn memory_ok(&self, current_bytes: usize) -> bool {
@@ -106,5 +130,26 @@ mod tests {
         let budget = Budget::new(&limits);
         assert!(budget.memory_ok(512));
         assert!(!budget.memory_ok(2048));
+    }
+
+    #[test]
+    fn cancel_token_exhausts_budget() {
+        let limits = SolverLimits::default();
+        let cancel = CancelToken::new();
+        let budget = Budget::with_cancel(&limits, cancel.clone());
+        assert!(!budget.exhausted());
+        cancel.cancel();
+        assert!(budget.exhausted());
+        assert!(budget.is_cancelled());
+    }
+
+    #[test]
+    fn cancel_handle_shares_token() {
+        let limits = SolverLimits::default();
+        let budget = Budget::new(&limits);
+        let handle = budget.cancel_handle();
+        assert!(!budget.is_cancelled());
+        handle.cancel();
+        assert!(budget.is_cancelled());
     }
 }

@@ -9,9 +9,11 @@ pub mod dense_state;
 pub mod exact_state;
 pub mod heuristic;
 pub mod improvement;
+pub mod interaction_boost;
 pub mod linear_conflict;
 pub mod log;
 pub mod macros;
+pub mod pattern_database;
 pub mod pipeline;
 pub mod planning;
 pub mod priority_queue;
@@ -25,4 +27,4 @@ pub mod verification;
 pub mod zobrist;
 
 pub use config::{SolverLimits, SolverOptions, SolverRequest};
-pub use pipeline::{solve, SolverPhase, SolverResult};
+pub use pipeline::{solve, solve_with_progress, ProgressUpdate, SolverPhase, SolverResult};

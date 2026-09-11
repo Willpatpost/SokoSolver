@@ -3,6 +3,7 @@ use sokomind_core::game::GameSnapshot;
 use sokomind_core::position::Direction;
 
 use crate::budget::Budget;
+use crate::cancellation::CancelToken;
 use crate::compiled_board::CompiledBoard;
 use crate::config::{SolverMode, SolverRequest};
 use crate::counters::SearchCounters;
@@ -12,6 +13,7 @@ use crate::heuristic::AssignmentHeuristic;
 use crate::improvement;
 use crate::log::PhaseLogger;
 use crate::macros::MacroEngine;
+use crate::planning::StructuralPlan;
 use crate::reachability::find_keeper_path;
 use crate::search::astar::{astar_search, AStarResult};
 use crate::search::beam::{beam_search, BeamConfig, BeamResult};
@@ -85,8 +87,40 @@ pub struct SolverResult {
     pub phase_reports: Vec<crate::log::PhaseReport>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ProgressUpdate {
+    pub phase: SolverPhase,
+    pub elapsed_ms: f64,
+    pub expanded_states: u64,
+    pub generated_states: u64,
+    pub best_pushes: Option<u32>,
+    pub best_moves: Option<u32>,
+    pub log_entries: Vec<crate::log::LogEntry>,
+}
+
 pub fn solve(request: &SolverRequest) -> SolverResult {
+    solve_with_progress(request, CancelToken::new(), &mut |_| true)
+}
+
+pub fn solve_with_progress(
+    request: &SolverRequest,
+    cancel: CancelToken,
+    on_progress: &mut dyn FnMut(&ProgressUpdate) -> bool,
+) -> SolverResult {
     let mut logger = PhaseLogger::new(request.options.log_level);
+
+    let fire_progress =
+        |phase, budget: &Budget, counters: &SearchCounters, best: Option<u32>, logger: &mut PhaseLogger, cb: &mut dyn FnMut(&ProgressUpdate) -> bool| -> bool {
+            cb(&ProgressUpdate {
+                phase,
+                elapsed_ms: budget.elapsed_ms(),
+                expanded_states: counters.expanded,
+                generated_states: counters.generated,
+                best_pushes: best,
+                best_moves: None,
+                log_entries: logger.drain_entries(),
+            })
+        };
 
     // Phase 0: Prepare
     logger.start_phase(SolverPhase::Preparing);
@@ -96,10 +130,36 @@ pub fn solve(request: &SolverRequest) -> SolverResult {
     let mut heuristic = AssignmentHeuristic::new(&cb);
     let deadlocks = DeadlockChecker::new(&cb);
     let macros = MacroEngine::new(&cb);
+    let plan = StructuralPlan::build(&cb);
     let initial = DenseState::from_initial(&cb);
-    let mut budget = Budget::new(&request.limits);
+    let mut budget = Budget::with_cancel(&request.limits, cancel);
     let mut counters = SearchCounters::default();
+
+    logger.set_counter("board.cells", cb.cell_count as f64);
+    logger.set_counter("board.boxes", cb.initial_box_cells.len() as f64);
+    logger.set_counter("board.goals", cb.goal_cells.len() as f64);
+    logger.log(
+        crate::config::LogLevel::Info,
+        &format!(
+            "board: {} cells, {} boxes, {} goals, mode={:?}",
+            cb.cell_count,
+            cb.initial_box_cells.len(),
+            cb.goal_cells.len(),
+            request.options.mode,
+        ),
+    );
+    if plan.is_active() {
+        logger.log(crate::config::LogLevel::Info, &plan.summary());
+    }
     logger.end_phase();
+
+    if !fire_progress(SolverPhase::Preparing, &budget, &counters, None, &mut logger, on_progress) {
+        budget.cancel_handle().cancel();
+    }
+
+    if budget.is_cancelled() {
+        return cancelled_result(&budget, &counters, logger);
+    }
 
     // Phase 2/3: Search
     logger.start_phase(SolverPhase::Searching);
@@ -110,11 +170,57 @@ pub fn solve(request: &SolverRequest) -> SolverResult {
         &mut heuristic,
         &deadlocks,
         &macros,
+        &plan,
         &mut budget,
         &mut counters,
         &request.options.mode,
     );
+
+    logger.set_counter("search.expanded", counters.expanded as f64);
+    logger.set_counter("search.generated", counters.generated as f64);
+    logger.set_counter("search.peak_frontier", counters.peak_frontier as f64);
+    logger.set_counter("search.deadlock.static", counters.deadlock_static as f64);
+    logger.set_counter("search.deadlock.two_by_two", counters.deadlock_two_by_two as f64);
+    logger.set_counter("search.deadlock.freeze", counters.deadlock_freeze as f64);
+    logger.set_counter("search.deadlock.pattern", counters.deadlock_pattern as f64);
+    logger.set_counter("search.heuristic.calls", counters.heuristic_calls as f64);
+    logger.set_counter("search.macro.forced_push", counters.macro_forced_push as f64);
+    logger.set_counter("search.macro.tunnel", counters.macro_tunnel as f64);
+    logger.set_counter("search.transposition.unique", counters.transposition_unique as f64);
+    logger.set_counter("search.transposition.duplicate", counters.transposition_duplicate as f64);
+
+    let outcome_str = match &search_result {
+        SearchOutcome::Solved { pushes, optimal } => {
+            format!("found solution ({} pushes, optimal={})", pushes.len(), optimal)
+        }
+        SearchOutcome::Exhausted => "search space exhausted".into(),
+        SearchOutcome::BudgetExceeded => "budget exceeded".into(),
+    };
+    logger.log(
+        crate::config::LogLevel::Info,
+        &format!(
+            "search: {} — expanded={}, generated={}, deadlock_prunes={}",
+            outcome_str,
+            counters.expanded,
+            counters.generated,
+            counters.deadlock_static + counters.deadlock_two_by_two
+                + counters.deadlock_freeze + counters.deadlock_pattern
+                + counters.deadlock_pi_corral + counters.deadlock_table,
+        ),
+    );
     logger.end_phase();
+
+    let best_pushes = match &search_result {
+        SearchOutcome::Solved { pushes, .. } => Some(pushes.len() as u32),
+        _ => None,
+    };
+    if !fire_progress(SolverPhase::Searching, &budget, &counters, best_pushes, &mut logger, on_progress) {
+        budget.cancel_handle().cancel();
+    }
+
+    if budget.is_cancelled() && best_pushes.is_none() {
+        return cancelled_result(&budget, &counters, logger);
+    }
 
     let total_deadlock_prunes = counters.deadlock_static
         + counters.deadlock_two_by_two
@@ -139,16 +245,38 @@ pub fn solve(request: &SolverRequest) -> SolverResult {
             mut pushes,
             optimal,
         } => {
-            // Phase 4: Improve (skip for proven-optimal solutions)
             if !optimal {
+                let pre_pushes = pushes.len();
                 logger.start_phase(SolverPhase::Improving);
-                improvement::improve_push_sequence(&cb, &deadlocks, &mut pushes);
+                let imp_report = improvement::improve_push_sequence(&cb, &deadlocks, &mut pushes);
+                logger.set_counter("improvement.pushes_saved", imp_report.pushes_saved as f64);
+                logger.set_counter("improvement.moves_saved", imp_report.moves_saved as f64);
+                logger.log(
+                    crate::config::LogLevel::Info,
+                    &format!(
+                        "improvement: {} → {} pushes (saved {}p, {}m)",
+                        pre_pushes,
+                        pushes.len(),
+                        imp_report.pushes_saved,
+                        imp_report.moves_saved,
+                    ),
+                );
                 logger.end_phase();
+                fire_progress(SolverPhase::Improving, &budget, &counters, Some(pushes.len() as u32), &mut logger, on_progress);
             }
 
             logger.start_phase(SolverPhase::Verifying);
             match pushes_to_solution(&cb, &request.board, &pushes) {
                 Ok(solution) => {
+                    logger.set_counter("solution.moves", solution.moves as f64);
+                    logger.set_counter("solution.pushes", solution.pushes as f64);
+                    logger.log(
+                        crate::config::LogLevel::Info,
+                        &format!(
+                            "verified: {} moves, {} pushes",
+                            solution.moves, solution.pushes,
+                        ),
+                    );
                     logger.end_phase();
                     let proof = if optimal {
                         Some(crate::proof::optimal_proof(solution.pushes))
@@ -190,8 +318,12 @@ pub fn solve(request: &SolverRequest) -> SolverResult {
             phase_reports: logger.into_reports(),
         },
         SearchOutcome::BudgetExceeded => SolverResult {
-            status: SolverStatus::Unsolved {
-                reason: "budget exceeded".into(),
+            status: if budget.is_cancelled() {
+                SolverStatus::Cancelled
+            } else {
+                SolverStatus::Unsolved {
+                    reason: "budget exceeded".into(),
+                }
             },
             solution: None,
             metrics,
@@ -199,6 +331,35 @@ pub fn solve(request: &SolverRequest) -> SolverResult {
             telemetry,
             phase_reports: logger.into_reports(),
         },
+    }
+}
+
+fn cancelled_result(
+    budget: &Budget,
+    counters: &SearchCounters,
+    logger: PhaseLogger,
+) -> SolverResult {
+    let total_deadlock_prunes = counters.deadlock_static
+        + counters.deadlock_two_by_two
+        + counters.deadlock_freeze
+        + counters.deadlock_pattern
+        + counters.deadlock_pi_corral
+        + counters.deadlock_table;
+
+    SolverResult {
+        status: SolverStatus::Cancelled,
+        solution: None,
+        metrics: SolverMetrics {
+            elapsed_ms: budget.elapsed_ms(),
+            expanded_states: counters.expanded,
+            generated_states: counters.generated,
+            peak_frontier: counters.peak_frontier,
+            peak_memory_bytes: 0,
+            deadlock_prunes: total_deadlock_prunes,
+        },
+        proof: None,
+        telemetry: counters.to_telemetry(0),
+        phase_reports: logger.into_reports(),
     }
 }
 
@@ -227,17 +388,18 @@ fn run_search(
     heuristic: &mut AssignmentHeuristic,
     deadlocks: &DeadlockChecker,
     macros: &MacroEngine,
+    plan: &StructuralPlan,
     budget: &mut Budget,
     counters: &mut SearchCounters,
     mode: &SolverMode,
 ) -> SearchOutcome {
     if is_small_puzzle(cb) {
         run_small_puzzle_search(
-            cb, initial, zk, heuristic, deadlocks, macros, budget, counters, mode,
+            cb, initial, zk, heuristic, deadlocks, macros, plan, budget, counters, mode,
         )
     } else {
         run_large_puzzle_search(
-            cb, initial, zk, heuristic, deadlocks, macros, budget, counters, mode,
+            cb, initial, zk, heuristic, deadlocks, macros, plan, budget, counters, mode,
         )
     }
 }
@@ -251,6 +413,7 @@ fn run_small_puzzle_search(
     heuristic: &mut AssignmentHeuristic,
     deadlocks: &DeadlockChecker,
     macros: &MacroEngine,
+    plan: &StructuralPlan,
     budget: &mut Budget,
     counters: &mut SearchCounters,
     mode: &SolverMode,
@@ -265,7 +428,7 @@ fn run_small_puzzle_search(
         AStarResult::BudgetExceeded => {
             heuristic.clear_cache();
             let beam_result = try_beam(
-                cb, initial, zk, heuristic, deadlocks, macros, budget, counters,
+                cb, initial, zk, heuristic, deadlocks, macros, plan, budget, counters,
             );
             if let Some(outcome) = beam_result {
                 return outcome;
@@ -291,12 +454,13 @@ fn run_large_puzzle_search(
     heuristic: &mut AssignmentHeuristic,
     deadlocks: &DeadlockChecker,
     macros: &MacroEngine,
+    plan: &StructuralPlan,
     budget: &mut Budget,
     counters: &mut SearchCounters,
     mode: &SolverMode,
 ) -> SearchOutcome {
     let beam_result = try_beam(
-        cb, initial, zk, heuristic, deadlocks, macros, budget, counters,
+        cb, initial, zk, heuristic, deadlocks, macros, plan, budget, counters,
     );
     if let Some(outcome) = beam_result {
         if let SearchOutcome::Solved { ref pushes, .. } = outcome {
@@ -352,12 +516,14 @@ fn try_beam(
     heuristic: &mut AssignmentHeuristic,
     deadlocks: &DeadlockChecker,
     macros: &MacroEngine,
+    plan: &StructuralPlan,
     budget: &mut Budget,
     counters: &mut SearchCounters,
 ) -> Option<SearchOutcome> {
     let config = BeamConfig::default();
+    let plan_ref = if plan.is_active() { Some(plan) } else { None };
     match beam_search(
-        cb, initial, zk, heuristic, deadlocks, macros, budget, counters, &config,
+        cb, initial, zk, heuristic, deadlocks, macros, budget, counters, &config, plan_ref,
     ) {
         BeamResult::Solved { mut incumbents } => {
             incumbents.sort_by_key(|inc| inc.push_count);

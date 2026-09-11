@@ -1,0 +1,105 @@
+:root {
+  --ink-950: #171916;
+  --ink-900: #20231f;
+  --ink-800: #2c302b;
+  --ink-700: #42483f;
+  --ink-muted: #5f655b;
+  --ink-subtle: #596057;
+  --paper-50: #fbfaf5;
+  --paper-100: #f3f0e7;
+  --paper-200: #e6e0d2;
+  --paper-300: #d4ccba;
+  --sage-400: #8aa08c;
+  --sage-500: #708872;
+  --sage-600: #566e59;
+  --sage-700: #3f5744;
+  --amber-300: #f0c060;
+  --amber-400: #e5a64b;
+  --amber-500: #cb8230;
+  --amber-600: #a86820;
+  --coral-400: #d4806a;
+  --coral-500: #c8664d;
+  --blue-500: #4a7f96;
+  --shadow-soft: 0 24px 70px rgb(23 25 22 / 0.12);
+  --shadow-card: 0 10px 30px rgb(23 25 22 / 0.08);
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --surface-glass: rgb(251 250 245 / 0.78);
+  --surface-subtle: var(--paper-100);
+  --border-soft: rgb(23 25 22 / 0.1);
+  --border-medium: rgb(23 25 22 / 0.16);
+  --app-background:
+    radial-gradient(circle at 12% 8%, rgb(255 255 255 / 0.95), transparent 28rem),
+    linear-gradient(145deg, #f7f4eb 0%, #eee8da 100%);
+
+  --game-board-border: rgb(23 25 22 / 0.16);
+  --game-board-bg: var(--ink-950);
+  --game-board-shadow:
+    0 18px 45px rgb(23 25 22 / 0.18),
+    inset 0 0 0 1px rgb(255 255 255 / 0.05);
+  --game-board-solved-shadow:
+    0 22px 60px rgb(86 110 89 / 0.32),
+    0 0 0 4px rgb(112 136 114 / 0.2);
+  --game-goal-ripple: rgb(111 148 87 / 0.78);
+  --game-floor-highlight: rgb(255 255 255 / 0.35);
+  --game-floor-grain: rgb(84 72 50 / 0.035);
+  --game-floor-base: #e8e0cf;
+  --game-floor-inset: inset 0 0 0 1px rgb(23 25 22 / 0.04);
+  --game-wall-highlight: rgb(255 255 255 / 0.065);
+  --game-wall-shadow: rgb(0 0 0 / 0.1);
+  --game-wall-base: #343832;
+  --game-wall-border: rgb(255 255 255 / 0.045);
+  --game-wall-ledge: rgb(0 0 0 / 0.13);
+  --game-goal-border-tone: 32% 40%;
+  --game-goal-ring-tone: 34% 66% / 0.42;
+  --game-goal-fill-tone: 30% 82% / 0.5;
+  --game-goal-color-tone: 38% 29%;
+  --game-crate-gradient-angle: 145deg;
+  --game-crate-start-tone: 68% 69%;
+  --game-crate-end-tone: 59% 48%;
+  --game-crate-border-tone: 48% 27%;
+  --game-crate-cross-tone: 48% 29% / 0.32;
+  --game-crate-face-border-tone: 46% 22% / 0.4;
+  --game-crate-face-bg-tone: 50% 72% / 0.55;
+  --game-crate-color-tone: 38% 18%;
+  --game-crate-home-shadow: 0 0 14px rgb(112 136 114 / 0.48);
+  --game-robot-border: #294d5d;
+  --game-robot-antenna: #294d5d;
+  --game-robot-bg: linear-gradient(150deg, #75aec5, #376c83);
+  --game-robot-face:
+    radial-gradient(circle at 32% 38%, var(--paper-50) 0 7%, transparent 8%),
+    radial-gradient(circle at 68% 38%, var(--paper-50) 0 7%, transparent 8%),
+    linear-gradient(rgb(23 25 22 / 0.42), rgb(23 25 22 / 0.42)) 50% 73% / 34% 8% no-repeat,
+    rgb(29 65 79 / 0.32);
+  --game-robot-shadow:
+    inset 0 0 0 clamp(1px, 0.2vw, 2px) rgb(255 255 255 / 0.28),
+    0 2px 6px rgb(23 25 22 / 0.3);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  background: var(--app-background);
+  color: var(--ink-950);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+:focus-visible {
+  outline: 2px solid var(--blue-500);
+  outline-offset: 2px;
+}
+
+button {
+  font-family: inherit;
+}

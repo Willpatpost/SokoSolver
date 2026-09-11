@@ -18,7 +18,8 @@ pub struct CompiledBoard {
     pub height: u16,
     pub robot_cell: u16,
     pub initial_box_cells: Vec<(u16, Label)>,
-    reverse_push_dist: Vec<Vec<u16>>,
+    goal_at: Vec<Option<u8>>,
+    reverse_push_dist: Vec<u16>,
 }
 
 impl CompiledBoard {
@@ -81,6 +82,11 @@ impl CompiledBoard {
             })
             .collect();
 
+        let mut goal_at = vec![None; cell_count as usize];
+        for &(cell, label) in &goal_cells {
+            goal_at[cell as usize] = Some(label.0);
+        }
+
         let reverse_push_dist =
             Self::compute_reverse_push_distances(cell_count, &neighbors, &goal_cells);
 
@@ -95,6 +101,7 @@ impl CompiledBoard {
             height,
             robot_cell,
             initial_box_cells,
+            goal_at,
             reverse_push_dist,
         }
     }
@@ -119,29 +126,31 @@ impl CompiledBoard {
     }
 
     pub fn is_goal(&self, cell: u16) -> bool {
-        self.goal_cells.iter().any(|&(c, _)| c == cell)
+        self.goal_at[cell as usize].is_some()
     }
 
     pub fn goal_label_at(&self, cell: u16) -> Option<Label> {
-        self.goal_cells
-            .iter()
-            .find(|&&(c, _)| c == cell)
-            .map(|&(_, l)| l)
+        self.goal_at[cell as usize].map(Label)
+    }
+
+    pub fn goal_matches(&self, cell: u16, label_group: u8) -> bool {
+        self.goal_at[cell as usize] == Some(label_group)
     }
 
     pub fn reverse_push_distance(&self, goal_index: usize, cell: u16) -> u16 {
-        self.reverse_push_dist[goal_index][cell as usize]
+        self.reverse_push_dist[goal_index * self.cell_count as usize + cell as usize]
     }
 
     fn compute_reverse_push_distances(
         cell_count: u16,
         neighbors: &[[u16; 4]],
         goal_cells: &[(u16, Label)],
-    ) -> Vec<Vec<u16>> {
-        goal_cells
-            .iter()
-            .map(|&(goal_cell, _)| Self::bfs_reverse_push(cell_count, neighbors, goal_cell))
-            .collect()
+    ) -> Vec<u16> {
+        let mut dist = Vec::with_capacity(goal_cells.len() * cell_count as usize);
+        for &(goal_cell, _) in goal_cells {
+            dist.extend_from_slice(&Self::bfs_reverse_push(cell_count, neighbors, goal_cell));
+        }
+        dist
     }
 
     /// BFS from goal_cell computing minimum push distance to reach it.

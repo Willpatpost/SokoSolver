@@ -1,0 +1,12 @@
+[package]
+name = "sokomind-solver"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Flagship Sokoban solver: beam search, exact proof, improvement pipeline"
+
+[dependencies]
+sokomind-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+rustc-hash = { workspace = true }

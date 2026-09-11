@@ -1,0 +1,9 @@
+[package]
+name = "sokomind-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Pure Sokoban game rules: board parsing, transitions, replay"
+
+[dependencies]
+serde = { workspace = true }

@@ -1,0 +1,26 @@
+# Rust
+target/
+Cargo.lock
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# WASM build artifacts in UI package
+packages/sokomind-ui/src/solver/wasm/*.wasm
+packages/sokomind-ui/src/solver/wasm/*.js
+packages/sokomind-ui/src/solver/wasm/*.d.ts
+packages/sokomind-ui/src/solver/wasm/package.json
+
+# Results
+results/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp

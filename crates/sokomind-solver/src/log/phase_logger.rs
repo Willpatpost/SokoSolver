@@ -1,3 +1,8 @@
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
+#[cfg(target_arch = "wasm32")]
+use web_time::Instant;
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -19,7 +24,7 @@ pub struct PhaseLogger {
     collector: LogCollector,
     current_phase: Option<SolverPhase>,
     phase_start_ms: f64,
-    start_time: std::time::Instant,
+    start_time: Instant,
     reports: Vec<PhaseReport>,
     current_counters: HashMap<String, f64>,
 }
@@ -31,7 +36,7 @@ impl PhaseLogger {
             collector: LogCollector::new(10_000),
             current_phase: None,
             phase_start_ms: 0.0,
-            start_time: std::time::Instant::now(),
+            start_time: Instant::now(),
             reports: Vec::new(),
             current_counters: HashMap::new(),
         }

@@ -95,6 +95,7 @@ pub struct ProgressUpdate {
     pub generated_states: u64,
     pub best_pushes: Option<u32>,
     pub best_moves: Option<u32>,
+    pub log_entries: Vec<crate::log::LogEntry>,
 }
 
 pub fn solve(request: &SolverRequest) -> SolverResult {
@@ -109,7 +110,7 @@ pub fn solve_with_progress(
     let mut logger = PhaseLogger::new(request.options.log_level);
 
     let fire_progress =
-        |phase, budget: &Budget, counters: &SearchCounters, best: Option<u32>, cb: &mut dyn FnMut(&ProgressUpdate) -> bool| -> bool {
+        |phase, budget: &Budget, counters: &SearchCounters, best: Option<u32>, logger: &mut PhaseLogger, cb: &mut dyn FnMut(&ProgressUpdate) -> bool| -> bool {
             cb(&ProgressUpdate {
                 phase,
                 elapsed_ms: budget.elapsed_ms(),
@@ -117,6 +118,7 @@ pub fn solve_with_progress(
                 generated_states: counters.generated,
                 best_pushes: best,
                 best_moves: None,
+                log_entries: logger.drain_entries(),
             })
         };
 
@@ -132,9 +134,26 @@ pub fn solve_with_progress(
     let initial = DenseState::from_initial(&cb);
     let mut budget = Budget::with_cancel(&request.limits, cancel);
     let mut counters = SearchCounters::default();
+
+    logger.set_counter("board.cells", cb.cell_count as f64);
+    logger.set_counter("board.boxes", cb.initial_box_cells.len() as f64);
+    logger.set_counter("board.goals", cb.goal_cells.len() as f64);
+    logger.log(
+        crate::config::LogLevel::Info,
+        &format!(
+            "board: {} cells, {} boxes, {} goals, mode={:?}",
+            cb.cell_count,
+            cb.initial_box_cells.len(),
+            cb.goal_cells.len(),
+            request.options.mode,
+        ),
+    );
+    if plan.is_active() {
+        logger.log(crate::config::LogLevel::Info, &plan.summary());
+    }
     logger.end_phase();
 
-    if !fire_progress(SolverPhase::Preparing, &budget, &counters, None, on_progress) {
+    if !fire_progress(SolverPhase::Preparing, &budget, &counters, None, &mut logger, on_progress) {
         budget.cancel_handle().cancel();
     }
 
@@ -156,13 +175,46 @@ pub fn solve_with_progress(
         &mut counters,
         &request.options.mode,
     );
+
+    logger.set_counter("search.expanded", counters.expanded as f64);
+    logger.set_counter("search.generated", counters.generated as f64);
+    logger.set_counter("search.peak_frontier", counters.peak_frontier as f64);
+    logger.set_counter("search.deadlock.static", counters.deadlock_static as f64);
+    logger.set_counter("search.deadlock.two_by_two", counters.deadlock_two_by_two as f64);
+    logger.set_counter("search.deadlock.freeze", counters.deadlock_freeze as f64);
+    logger.set_counter("search.deadlock.pattern", counters.deadlock_pattern as f64);
+    logger.set_counter("search.heuristic.calls", counters.heuristic_calls as f64);
+    logger.set_counter("search.macro.forced_push", counters.macro_forced_push as f64);
+    logger.set_counter("search.macro.tunnel", counters.macro_tunnel as f64);
+    logger.set_counter("search.transposition.unique", counters.transposition_unique as f64);
+    logger.set_counter("search.transposition.duplicate", counters.transposition_duplicate as f64);
+
+    let outcome_str = match &search_result {
+        SearchOutcome::Solved { pushes, optimal } => {
+            format!("found solution ({} pushes, optimal={})", pushes.len(), optimal)
+        }
+        SearchOutcome::Exhausted => "search space exhausted".into(),
+        SearchOutcome::BudgetExceeded => "budget exceeded".into(),
+    };
+    logger.log(
+        crate::config::LogLevel::Info,
+        &format!(
+            "search: {} — expanded={}, generated={}, deadlock_prunes={}",
+            outcome_str,
+            counters.expanded,
+            counters.generated,
+            counters.deadlock_static + counters.deadlock_two_by_two
+                + counters.deadlock_freeze + counters.deadlock_pattern
+                + counters.deadlock_pi_corral + counters.deadlock_table,
+        ),
+    );
     logger.end_phase();
 
     let best_pushes = match &search_result {
         SearchOutcome::Solved { pushes, .. } => Some(pushes.len() as u32),
         _ => None,
     };
-    if !fire_progress(SolverPhase::Searching, &budget, &counters, best_pushes, on_progress) {
+    if !fire_progress(SolverPhase::Searching, &budget, &counters, best_pushes, &mut logger, on_progress) {
         budget.cancel_handle().cancel();
     }
 
@@ -194,15 +246,37 @@ pub fn solve_with_progress(
             optimal,
         } => {
             if !optimal {
+                let pre_pushes = pushes.len();
                 logger.start_phase(SolverPhase::Improving);
-                improvement::improve_push_sequence(&cb, &deadlocks, &mut pushes);
+                let imp_report = improvement::improve_push_sequence(&cb, &deadlocks, &mut pushes);
+                logger.set_counter("improvement.pushes_saved", imp_report.pushes_saved as f64);
+                logger.set_counter("improvement.moves_saved", imp_report.moves_saved as f64);
+                logger.log(
+                    crate::config::LogLevel::Info,
+                    &format!(
+                        "improvement: {} → {} pushes (saved {}p, {}m)",
+                        pre_pushes,
+                        pushes.len(),
+                        imp_report.pushes_saved,
+                        imp_report.moves_saved,
+                    ),
+                );
                 logger.end_phase();
-                fire_progress(SolverPhase::Improving, &budget, &counters, Some(pushes.len() as u32), on_progress);
+                fire_progress(SolverPhase::Improving, &budget, &counters, Some(pushes.len() as u32), &mut logger, on_progress);
             }
 
             logger.start_phase(SolverPhase::Verifying);
             match pushes_to_solution(&cb, &request.board, &pushes) {
                 Ok(solution) => {
+                    logger.set_counter("solution.moves", solution.moves as f64);
+                    logger.set_counter("solution.pushes", solution.pushes as f64);
+                    logger.log(
+                        crate::config::LogLevel::Info,
+                        &format!(
+                            "verified: {} moves, {} pushes",
+                            solution.moves, solution.pushes,
+                        ),
+                    );
                     logger.end_phase();
                     let proof = if optimal {
                         Some(crate::proof::optimal_proof(solution.pushes))

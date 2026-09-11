@@ -1,4 +1,5 @@
 mod collector;
+pub mod format;
 mod phase_logger;
 mod telemetry;
 

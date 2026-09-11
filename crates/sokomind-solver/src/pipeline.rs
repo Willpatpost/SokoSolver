@@ -3,6 +3,7 @@ use sokomind_core::game::GameSnapshot;
 use sokomind_core::position::Direction;
 
 use crate::budget::Budget;
+use crate::cancellation::CancelToken;
 use crate::compiled_board::CompiledBoard;
 use crate::config::{SolverMode, SolverRequest};
 use crate::counters::SearchCounters;
@@ -86,8 +87,38 @@ pub struct SolverResult {
     pub phase_reports: Vec<crate::log::PhaseReport>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ProgressUpdate {
+    pub phase: SolverPhase,
+    pub elapsed_ms: f64,
+    pub expanded_states: u64,
+    pub generated_states: u64,
+    pub best_pushes: Option<u32>,
+    pub best_moves: Option<u32>,
+}
+
 pub fn solve(request: &SolverRequest) -> SolverResult {
+    solve_with_progress(request, CancelToken::new(), &mut |_| true)
+}
+
+pub fn solve_with_progress(
+    request: &SolverRequest,
+    cancel: CancelToken,
+    on_progress: &mut dyn FnMut(&ProgressUpdate) -> bool,
+) -> SolverResult {
     let mut logger = PhaseLogger::new(request.options.log_level);
+
+    let fire_progress =
+        |phase, budget: &Budget, counters: &SearchCounters, best: Option<u32>, cb: &mut dyn FnMut(&ProgressUpdate) -> bool| -> bool {
+            cb(&ProgressUpdate {
+                phase,
+                elapsed_ms: budget.elapsed_ms(),
+                expanded_states: counters.expanded,
+                generated_states: counters.generated,
+                best_pushes: best,
+                best_moves: None,
+            })
+        };
 
     // Phase 0: Prepare
     logger.start_phase(SolverPhase::Preparing);
@@ -99,9 +130,17 @@ pub fn solve(request: &SolverRequest) -> SolverResult {
     let macros = MacroEngine::new(&cb);
     let plan = StructuralPlan::build(&cb);
     let initial = DenseState::from_initial(&cb);
-    let mut budget = Budget::new(&request.limits);
+    let mut budget = Budget::with_cancel(&request.limits, cancel);
     let mut counters = SearchCounters::default();
     logger.end_phase();
+
+    if !fire_progress(SolverPhase::Preparing, &budget, &counters, None, on_progress) {
+        budget.cancel_handle().cancel();
+    }
+
+    if budget.is_cancelled() {
+        return cancelled_result(&budget, &counters, logger);
+    }
 
     // Phase 2/3: Search
     logger.start_phase(SolverPhase::Searching);
@@ -118,6 +157,18 @@ pub fn solve(request: &SolverRequest) -> SolverResult {
         &request.options.mode,
     );
     logger.end_phase();
+
+    let best_pushes = match &search_result {
+        SearchOutcome::Solved { pushes, .. } => Some(pushes.len() as u32),
+        _ => None,
+    };
+    if !fire_progress(SolverPhase::Searching, &budget, &counters, best_pushes, on_progress) {
+        budget.cancel_handle().cancel();
+    }
+
+    if budget.is_cancelled() && best_pushes.is_none() {
+        return cancelled_result(&budget, &counters, logger);
+    }
 
     let total_deadlock_prunes = counters.deadlock_static
         + counters.deadlock_two_by_two
@@ -142,11 +193,11 @@ pub fn solve(request: &SolverRequest) -> SolverResult {
             mut pushes,
             optimal,
         } => {
-            // Phase 4: Improve (skip for proven-optimal solutions)
             if !optimal {
                 logger.start_phase(SolverPhase::Improving);
                 improvement::improve_push_sequence(&cb, &deadlocks, &mut pushes);
                 logger.end_phase();
+                fire_progress(SolverPhase::Improving, &budget, &counters, Some(pushes.len() as u32), on_progress);
             }
 
             logger.start_phase(SolverPhase::Verifying);
@@ -193,8 +244,12 @@ pub fn solve(request: &SolverRequest) -> SolverResult {
             phase_reports: logger.into_reports(),
         },
         SearchOutcome::BudgetExceeded => SolverResult {
-            status: SolverStatus::Unsolved {
-                reason: "budget exceeded".into(),
+            status: if budget.is_cancelled() {
+                SolverStatus::Cancelled
+            } else {
+                SolverStatus::Unsolved {
+                    reason: "budget exceeded".into(),
+                }
             },
             solution: None,
             metrics,
@@ -202,6 +257,35 @@ pub fn solve(request: &SolverRequest) -> SolverResult {
             telemetry,
             phase_reports: logger.into_reports(),
         },
+    }
+}
+
+fn cancelled_result(
+    budget: &Budget,
+    counters: &SearchCounters,
+    logger: PhaseLogger,
+) -> SolverResult {
+    let total_deadlock_prunes = counters.deadlock_static
+        + counters.deadlock_two_by_two
+        + counters.deadlock_freeze
+        + counters.deadlock_pattern
+        + counters.deadlock_pi_corral
+        + counters.deadlock_table;
+
+    SolverResult {
+        status: SolverStatus::Cancelled,
+        solution: None,
+        metrics: SolverMetrics {
+            elapsed_ms: budget.elapsed_ms(),
+            expanded_states: counters.expanded,
+            generated_states: counters.generated,
+            peak_frontier: counters.peak_frontier,
+            peak_memory_bytes: 0,
+            deadlock_prunes: total_deadlock_prunes,
+        },
+        proof: None,
+        telemetry: counters.to_telemetry(0),
+        phase_reports: logger.into_reports(),
     }
 }
 

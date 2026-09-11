@@ -27,4 +27,4 @@ pub mod verification;
 pub mod zobrist;
 
 pub use config::{SolverLimits, SolverOptions, SolverRequest};
-pub use pipeline::{solve, SolverPhase, SolverResult};
+pub use pipeline::{solve, solve_with_progress, ProgressUpdate, SolverPhase, SolverResult};

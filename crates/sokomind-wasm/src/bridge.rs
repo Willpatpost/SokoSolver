@@ -1,8 +1,10 @@
 use serde::Deserialize;
 use sokomind_core::board::parse_board;
 use sokomind_core::game::create_snapshot;
+use sokomind_solver::cancellation::CancelToken;
 use sokomind_solver::config::{LogLevel, SolverLimits, SolverMode, SolverOptions, SolverRequest};
-use sokomind_solver::pipeline::solve;
+use sokomind_solver::pipeline::{solve, solve_with_progress, ProgressUpdate};
+use wasm_bindgen::prelude::*;
 
 #[derive(Deserialize)]
 struct WasmPuzzleInput {
@@ -35,22 +37,15 @@ impl Default for WasmOptionsInput {
     }
 }
 
-pub fn solve_bridge(puzzle_json: &str, options_json: &str) -> String {
-    let puzzle: WasmPuzzleInput = match serde_json::from_str(puzzle_json) {
-        Ok(p) => p,
-        Err(e) => return error_result(&format!("invalid puzzle JSON: {}", e)),
-    };
+fn parse_request(puzzle_json: &str, options_json: &str) -> Result<SolverRequest, String> {
+    let puzzle: WasmPuzzleInput =
+        serde_json::from_str(puzzle_json).map_err(|e| format!("invalid puzzle JSON: {}", e))?;
 
-    let opts: WasmOptionsInput = match serde_json::from_str(options_json) {
-        Ok(o) => o,
-        Err(e) => return error_result(&format!("invalid options JSON: {}", e)),
-    };
+    let opts: WasmOptionsInput =
+        serde_json::from_str(options_json).map_err(|e| format!("invalid options JSON: {}", e))?;
 
     let row_refs: Vec<&str> = puzzle.rows.iter().map(|s| s.as_str()).collect();
-    let board = match parse_board(&row_refs) {
-        Ok(b) => b,
-        Err(e) => return error_result(&format!("invalid board: {}", e)),
-    };
+    let board = parse_board(&row_refs).map_err(|e| format!("invalid board: {}", e))?;
 
     let snapshot = create_snapshot(&board);
 
@@ -70,7 +65,7 @@ pub fn solve_bridge(puzzle_json: &str, options_json: &str) -> String {
         _ => LogLevel::Info,
     };
 
-    let request = SolverRequest {
+    Ok(SolverRequest {
         board,
         snapshot,
         limits: SolverLimits {
@@ -85,9 +80,60 @@ pub fn solve_bridge(puzzle_json: &str, options_json: &str) -> String {
             log_level,
             seed: opts.seed,
         },
+    })
+}
+
+pub fn solve_bridge(puzzle_json: &str, options_json: &str) -> String {
+    let request = match parse_request(puzzle_json, options_json) {
+        Ok(r) => r,
+        Err(e) => return error_result(&e),
     };
 
     let result = solve(&request);
+    serde_json::to_string(&result)
+        .unwrap_or_else(|e| error_result(&format!("serialization failed: {}", e)))
+}
+
+/// Solve with periodic progress callbacks to a JS function.
+///
+/// The `on_progress` function receives a JSON-serialized `ProgressUpdate`
+/// and returns a boolean: `true` to continue, `false` to cancel.
+pub fn solve_bridge_with_progress(
+    puzzle_json: &str,
+    options_json: &str,
+    on_progress: &js_sys::Function,
+) -> String {
+    let request = match parse_request(puzzle_json, options_json) {
+        Ok(r) => r,
+        Err(e) => return error_result(&e),
+    };
+
+    let cancel = CancelToken::new();
+    let cancel_for_cb = cancel.clone();
+
+    let mut callback = |update: &ProgressUpdate| -> bool {
+        let json = match serde_json::to_string(update) {
+            Ok(j) => j,
+            Err(_) => return true,
+        };
+        let result = on_progress.call1(&JsValue::NULL, &JsValue::from_str(&json));
+        match result {
+            Ok(val) => {
+                if val.as_bool() == Some(false) {
+                    cancel_for_cb.cancel();
+                    false
+                } else {
+                    true
+                }
+            }
+            Err(_) => {
+                cancel_for_cb.cancel();
+                false
+            }
+        }
+    };
+
+    let result = solve_with_progress(&request, cancel, &mut callback);
     serde_json::to_string(&result)
         .unwrap_or_else(|e| error_result(&format!("serialization failed: {}", e)))
 }

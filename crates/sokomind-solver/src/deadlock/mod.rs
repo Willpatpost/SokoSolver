@@ -66,7 +66,7 @@ impl DeadlockChecker {
         }
 
         if goal_commitment::is_goal_commitment_deadlock(cb, box_cells) {
-            counters.deadlock_pattern += 1;
+            counters.deadlock_goal_commitment += 1;
             return true;
         }
 

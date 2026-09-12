@@ -235,6 +235,7 @@ pub fn solve_with_progress(
                 + counters.deadlock_two_by_two
                 + counters.deadlock_freeze
                 + counters.deadlock_pattern
+                + counters.deadlock_goal_commitment
                 + counters.deadlock_pi_corral
                 + counters.deadlock_table,
         ),
@@ -264,6 +265,7 @@ pub fn solve_with_progress(
         + counters.deadlock_two_by_two
         + counters.deadlock_freeze
         + counters.deadlock_pattern
+        + counters.deadlock_goal_commitment
         + counters.deadlock_pi_corral
         + counters.deadlock_table;
 
@@ -388,6 +390,7 @@ fn cancelled_result(
         + counters.deadlock_two_by_two
         + counters.deadlock_freeze
         + counters.deadlock_pattern
+        + counters.deadlock_goal_commitment
         + counters.deadlock_pi_corral
         + counters.deadlock_table;
 

@@ -13,6 +13,7 @@ pub struct TelemetryCounters {
     pub deadlock_two_by_two_prunes: u64,
     pub deadlock_freeze_prunes: u64,
     pub deadlock_pattern_prunes: u64,
+    pub deadlock_goal_commitment_prunes: u64,
     pub deadlock_pi_corral_prunes: u64,
     pub deadlock_table_prunes: u64,
 
@@ -33,6 +34,7 @@ impl TelemetryCounters {
             + self.deadlock_two_by_two_prunes
             + self.deadlock_freeze_prunes
             + self.deadlock_pattern_prunes
+            + self.deadlock_goal_commitment_prunes
             + self.deadlock_pi_corral_prunes
             + self.deadlock_table_prunes
     }
@@ -53,6 +55,10 @@ impl TelemetryCounters {
         m.insert(
             "deadlock.pattern".into(),
             self.deadlock_pattern_prunes as f64,
+        );
+        m.insert(
+            "deadlock.goal_commitment".into(),
+            self.deadlock_goal_commitment_prunes as f64,
         );
         m.insert(
             "deadlock.pi_corral".into(),

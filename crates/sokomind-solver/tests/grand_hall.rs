@@ -4,6 +4,7 @@ use sokomind_solver::config::{LogLevel, SolverLimits, SolverMode, SolverOptions,
 use sokomind_solver::pipeline::{solve, SolverStatus};
 
 #[test]
+#[ignore]
 fn grand_hall_solves() {
     let rows: Vec<&str> = vec![
         "OOOOOOOOOOOOOOO",

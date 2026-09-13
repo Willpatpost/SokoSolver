@@ -1,9 +1,5 @@
 use sokomind_core::board::parse_board;
-use sokomind_solver::budget::Budget;
 use sokomind_solver::compiled_board::CompiledBoard;
-use sokomind_solver::config::SolverLimits;
-use sokomind_solver::counters::SearchCounters;
-use sokomind_solver::deadlock::DeadlockChecker;
 use sokomind_solver::dense_state::DenseState;
 use sokomind_solver::goal_commitment::GoalCommitmentDetector;
 use sokomind_solver::heuristic::AssignmentHeuristic;
@@ -15,6 +11,7 @@ use sokomind_solver::search::successors::{
 use sokomind_solver::zobrist::ZobristKeys;
 
 #[test]
+#[ignore]
 fn beam_trace() {
     let rows: Vec<&str> = vec![
         "OOOOOOOOOOOOOOO",

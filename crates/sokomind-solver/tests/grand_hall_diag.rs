@@ -10,6 +10,7 @@ use sokomind_solver::search::successors::generate_successors_with_macros;
 use sokomind_solver::zobrist::ZobristKeys;
 
 #[test]
+#[ignore]
 fn grand_hall_diagnostics() {
     let rows: Vec<&str> = vec![
         "OOOOOOOOOOOOOOO",

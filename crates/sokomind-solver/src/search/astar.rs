@@ -51,7 +51,9 @@ pub fn astar_search(
     budget: &mut Budget,
     counters: &mut SearchCounters,
 ) -> AStarResult {
-    astar_search_inner(cb, initial, zk, heuristic, deadlocks, budget, counters, false)
+    astar_search_inner(
+        cb, initial, zk, heuristic, deadlocks, budget, counters, false,
+    )
 }
 
 /// A* search using only quick deadlock checks (no pi-corral).
@@ -65,7 +67,9 @@ pub fn astar_search_quick(
     budget: &mut Budget,
     counters: &mut SearchCounters,
 ) -> AStarResult {
-    astar_search_inner(cb, initial, zk, heuristic, deadlocks, budget, counters, true)
+    astar_search_inner(
+        cb, initial, zk, heuristic, deadlocks, budget, counters, true,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]

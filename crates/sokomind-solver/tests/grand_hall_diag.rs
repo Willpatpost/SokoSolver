@@ -67,7 +67,10 @@ fn grand_hall_diagnostics() {
             surviving += 1;
             let sh = s.state.zobrist_hash(&zk);
             let sv = heuristic.evaluate(&cb, &s.state, sh);
-            let packing: u32 = s.state.box_cells.iter()
+            let packing: u32 = s
+                .state
+                .box_cells
+                .iter()
                 .filter(|&&(c, l)| cb.goal_matches(c, l))
                 .count() as u32;
             let box_label = initial.box_cells[s.box_index].1;
@@ -104,8 +107,7 @@ fn grand_hall_diagnostics() {
         let start = std::time::Instant::now();
         let n_iters = 100;
         for _ in 0..n_iters {
-            let _ =
-                generate_successors_with_macros(&cb, &initial, Some(&macros), None);
+            let _ = generate_successors_with_macros(&cb, &initial, Some(&macros), None);
         }
         let elapsed = start.elapsed();
         eprintln!(
@@ -123,7 +125,10 @@ fn grand_hall_diagnostics() {
         for _ in 0..n_iters {
             for s in &succs {
                 let _ = deadlocks.is_deadlocked(
-                    &cb, s.state.keeper_zone, &s.state.box_cells, &mut counters,
+                    &cb,
+                    s.state.keeper_zone,
+                    &s.state.box_cells,
+                    &mut counters,
                 );
             }
         }
@@ -140,9 +145,17 @@ fn grand_hall_diagnostics() {
     {
         // Time heuristic WITH CACHE CLEAR
         let succs = generate_successors_with_macros(&cb, &initial, Some(&macros), None);
-        let non_dead: Vec<_> = succs.iter().filter(|s| {
-            !deadlocks.is_deadlocked(&cb, s.state.keeper_zone, &s.state.box_cells, &mut counters)
-        }).collect();
+        let non_dead: Vec<_> = succs
+            .iter()
+            .filter(|s| {
+                !deadlocks.is_deadlocked(
+                    &cb,
+                    s.state.keeper_zone,
+                    &s.state.box_cells,
+                    &mut counters,
+                )
+            })
+            .collect();
 
         let start = std::time::Instant::now();
         let n_iters = 10;
@@ -193,11 +206,13 @@ fn grand_hall_diagnostics() {
         let n_iters = 10;
         for _ in 0..n_iters {
             heuristic.clear_cache();
-            let succs =
-                generate_successors_with_macros(&cb, &initial, Some(&macros), None);
+            let succs = generate_successors_with_macros(&cb, &initial, Some(&macros), None);
             for s in &succs {
                 if deadlocks.is_deadlocked(
-                    &cb, s.state.keeper_zone, &s.state.box_cells, &mut counters,
+                    &cb,
+                    s.state.keeper_zone,
+                    &s.state.box_cells,
+                    &mut counters,
                 ) {
                     continue;
                 }

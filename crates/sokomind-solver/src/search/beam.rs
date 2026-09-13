@@ -32,31 +32,57 @@ struct GoalAccessTable {
 
 impl GoalAccessTable {
     fn new(cb: &CompiledBoard) -> Self {
-        let dirs = [Direction::Up, Direction::Down, Direction::Left, Direction::Right];
-        let entries = cb.goal_cells.iter().map(|&(goal, label)| {
-            let lanes = dirs.iter().filter_map(|&dir| {
-                let opp = dir.opposite();
-                let source = cb.neighbor(goal, opp);
-                if source == INVALID_CELL { return None; }
-                let support = cb.neighbor(source, opp);
-                if support == INVALID_CELL { return None; }
-                Some(GoalLane { source, support })
-            }).collect();
-            GoalAccessEntry { goal, label: label.0, lanes }
-        }).collect();
+        let dirs = [
+            Direction::Up,
+            Direction::Down,
+            Direction::Left,
+            Direction::Right,
+        ];
+        let entries = cb
+            .goal_cells
+            .iter()
+            .map(|&(goal, label)| {
+                let lanes = dirs
+                    .iter()
+                    .filter_map(|&dir| {
+                        let opp = dir.opposite();
+                        let source = cb.neighbor(goal, opp);
+                        if source == INVALID_CELL {
+                            return None;
+                        }
+                        let support = cb.neighbor(source, opp);
+                        if support == INVALID_CELL {
+                            return None;
+                        }
+                        Some(GoalLane { source, support })
+                    })
+                    .collect();
+                GoalAccessEntry {
+                    goal,
+                    label: label.0,
+                    lanes,
+                }
+            })
+            .collect();
         GoalAccessTable { entries }
     }
 
     fn count_blocked_goals(&self, box_cells: &[(u16, u8)]) -> u32 {
         let mut blocked = 0u32;
         for entry in &self.entries {
-            if entry.lanes.is_empty() { continue; }
-            let on_goal = box_cells.iter().any(|&(c, l)| c == entry.goal && l == entry.label);
-            if on_goal { continue; }
+            if entry.lanes.is_empty() {
+                continue;
+            }
+            let on_goal = box_cells
+                .iter()
+                .any(|&(c, l)| c == entry.goal && l == entry.label);
+            if on_goal {
+                continue;
+            }
             let has_open_lane = entry.lanes.iter().any(|lane| {
-                let source_blocked = box_cells.iter().any(|&(c, l)| {
-                    c == lane.source && l != entry.label
-                });
+                let source_blocked = box_cells
+                    .iter()
+                    .any(|&(c, l)| c == lane.source && l != entry.label);
                 let support_blocked = box_cells.iter().any(|&(c, _)| c == lane.support);
                 !source_blocked && !support_blocked
             });
@@ -139,10 +165,14 @@ pub struct BeamIncumbent {
 }
 
 pub enum BeamResult {
-    Solved { incumbents: Vec<BeamIncumbent> },
+    Solved {
+        incumbents: Vec<BeamIncumbent>,
+    },
     NoSolution,
     BudgetExceeded,
-    Checkpoints { states: Vec<(DenseState, Vec<(usize, Direction)>)> },
+    Checkpoints {
+        states: Vec<(DenseState, Vec<(usize, Direction)>)>,
+    },
 }
 
 const NO_PARENT: u32 = u32::MAX;
@@ -279,8 +309,9 @@ fn sum_room_aware_distances(
             continue;
         }
         let box_room = rooms.cell_room(cell);
-        let prefer_other_room =
-            box_room.map(|r| balance.is_overloaded(label, r)).unwrap_or(false);
+        let prefer_other_room = box_room
+            .map(|r| balance.is_overloaded(label, r))
+            .unwrap_or(false);
 
         let mut best_preferred = u32::MAX;
         let mut best_any = u32::MAX;
@@ -319,7 +350,11 @@ fn min_push_distance_to_goal(cb: &CompiledBoard, cell: u16, label: u8) -> u32 {
         .filter(|(_, &(_, gl))| gl.0 == label)
         .map(|(gi, _)| {
             let d = cb.reverse_push_distance(gi, cell);
-            if d == u16::MAX { u32::MAX } else { d as u32 }
+            if d == u16::MAX {
+                u32::MAX
+            } else {
+                d as u32
+            }
         })
         .min()
         .unwrap_or(u32::MAX)
@@ -450,8 +485,10 @@ fn wall_adjacent_pair_penalty(cb: &CompiledBoard, box_cells: &[(u16, u8)]) -> u3
                     || (below_i == INVALID_CELL && below_j == INVALID_CELL)
                 {
                     penalty += 3;
-                } else if above_i == INVALID_CELL || above_j == INVALID_CELL
-                    || below_i == INVALID_CELL || below_j == INVALID_CELL
+                } else if above_i == INVALID_CELL
+                    || above_j == INVALID_CELL
+                    || below_i == INVALID_CELL
+                    || below_j == INVALID_CELL
                 {
                     penalty += 1;
                 }
@@ -465,8 +502,10 @@ fn wall_adjacent_pair_penalty(cb: &CompiledBoard, box_cells: &[(u16, u8)]) -> u3
                     || (right_i == INVALID_CELL && right_j == INVALID_CELL)
                 {
                     penalty += 3;
-                } else if left_i == INVALID_CELL || left_j == INVALID_CELL
-                    || right_i == INVALID_CELL || right_j == INVALID_CELL
+                } else if left_i == INVALID_CELL
+                    || left_j == INVALID_CELL
+                    || right_i == INVALID_CELL
+                    || right_j == INVALID_CELL
                 {
                     penalty += 1;
                 }
@@ -713,7 +752,11 @@ fn select_box_skip_mask(
         };
 
         let typed_bonus = label != 0;
-        let priority = if needs_crossing || typed_bonus { 0 } else { min_dist };
+        let priority = if needs_crossing || typed_bonus {
+            0
+        } else {
+            min_dist
+        };
         rest.push((bi, priority));
     }
 
@@ -764,7 +807,12 @@ impl GoalRoomAssignment {
         }
     }
 
-    fn wrong_side_count(&self, cb: &CompiledBoard, rooms: &RoomMap, box_cells: &[(u16, u8)]) -> u32 {
+    fn wrong_side_count(
+        &self,
+        cb: &CompiledBoard,
+        rooms: &RoomMap,
+        box_cells: &[(u16, u8)],
+    ) -> u32 {
         if !self.active {
             return 0;
         }
@@ -780,13 +828,7 @@ impl GoalRoomAssignment {
                 .enumerate()
                 .filter(|(_, &(_, gl))| gl.0 == label)
                 .filter_map(|(gi, _)| self.goal_room.get(gi).copied().flatten())
-                .min_by_key(|&gr| {
-                    if box_room == Some(gr) {
-                        0u32
-                    } else {
-                        1
-                    }
-                });
+                .min_by_key(|&gr| if box_room == Some(gr) { 0u32 } else { 1 });
             if let (Some(br), Some(gr)) = (box_room, nearest_goal_room) {
                 if br != gr {
                     count += 1;
@@ -843,7 +885,11 @@ impl RoomGoalCounts {
         }
 
         let mut penalty = 0u32;
-        for (r, &box_count) in boxes_per_room.iter().enumerate().take(self.room_count as usize) {
+        for (r, &box_count) in boxes_per_room
+            .iter()
+            .enumerate()
+            .take(self.room_count as usize)
+        {
             let diff = (box_count as i32 - self.goals_per_room[r] as i32).unsigned_abs();
             penalty += diff;
         }
@@ -855,12 +901,36 @@ impl RoomGoalCounts {
 fn archive_key(c: &BeamEntry, best_h: u32, max_pack: u32) -> u32 {
     let slack_bin = {
         let s = c.h_cost.saturating_sub(best_h);
-        if s <= 2 { 0 } else if s <= 6 { 1 } else if s <= 12 { 2 } else { 3 }
+        if s <= 2 {
+            0
+        } else if s <= 6 {
+            1
+        } else if s <= 12 {
+            2
+        } else {
+            3
+        }
     };
     let pack_deficit = max_pack.saturating_sub(c.feat_packing);
     let pack_bin = pack_deficit.min(3);
-    let evac_bin = if c.feat_evac == 0 { 0 } else if c.feat_evac <= 3 { 1 } else if c.feat_evac <= 7 { 2 } else { 3 };
-    let topo_bin = if c.feat_topo <= 2 { 0 } else if c.feat_topo <= 6 { 1 } else if c.feat_topo <= 12 { 2 } else { 3 };
+    let evac_bin = if c.feat_evac == 0 {
+        0
+    } else if c.feat_evac <= 3 {
+        1
+    } else if c.feat_evac <= 7 {
+        2
+    } else {
+        3
+    };
+    let topo_bin = if c.feat_topo <= 2 {
+        0
+    } else if c.feat_topo <= 6 {
+        1
+    } else if c.feat_topo <= 12 {
+        2
+    } else {
+        3
+    };
     slack_bin * 64 + pack_bin * 16 + evac_bin * 4 + topo_bin
 }
 
@@ -877,7 +947,8 @@ fn select_beam_layer(candidates: &mut Vec<BeamEntry>, width: usize) {
 
     // Phase 1: MAP-Elites archive — 35% of beam width
     let archive_quota = (width as f64 * 0.35) as usize;
-    let mut archive_grid: rustc_hash::FxHashMap<u32, (usize, f64)> = rustc_hash::FxHashMap::default();
+    let mut archive_grid: rustc_hash::FxHashMap<u32, (usize, f64)> =
+        rustc_hash::FxHashMap::default();
 
     for (i, c) in candidates.iter().enumerate() {
         let key = archive_key(c, best_h, max_pack);
@@ -892,7 +963,10 @@ fn select_beam_layer(candidates: &mut Vec<BeamEntry>, width: usize) {
         }
     }
 
-    let mut archive_entries: Vec<(u32, usize, f64)> = archive_grid.into_iter().map(|(k, (i, s))| (k, i, s)).collect();
+    let mut archive_entries: Vec<(u32, usize, f64)> = archive_grid
+        .into_iter()
+        .map(|(k, (i, s))| (k, i, s))
+        .collect();
     archive_entries.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(std::cmp::Ordering::Equal));
 
     for &(_, idx, _) in archive_entries.iter().take(archive_quota) {
@@ -910,13 +984,24 @@ fn select_beam_layer(candidates: &mut Vec<BeamEntry>, width: usize) {
             continue;
         }
         let slack = c.h_cost.saturating_sub(best_h);
-        let band = if slack <= 2 { 0 } else if slack <= 5 { 1 } else if slack <= 9 { 2 } else { 3 };
+        let band = if slack <= 2 {
+            0
+        } else if slack <= 5 {
+            1
+        } else if slack <= 9 {
+            2
+        } else {
+            3
+        };
         bands[band].push(i);
     }
 
     for band in &mut bands {
         band.sort_by(|&a, &b| {
-            candidates[a].score.partial_cmp(&candidates[b].score).unwrap_or(std::cmp::Ordering::Equal)
+            candidates[a]
+                .score
+                .partial_cmp(&candidates[b].score)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
     }
 
@@ -936,7 +1021,9 @@ fn select_beam_layer(candidates: &mut Vec<BeamEntry>, width: usize) {
 
         let mut added = 0;
         for &idx in band {
-            if added >= quota { break; }
+            if added >= quota {
+                break;
+            }
             let pc = candidates[idx].push_class;
             if !used_classes.contains(&pc) {
                 selected.push(idx);
@@ -946,7 +1033,9 @@ fn select_beam_layer(candidates: &mut Vec<BeamEntry>, width: usize) {
             }
         }
         for &idx in band {
-            if added >= quota { break; }
+            if added >= quota {
+                break;
+            }
             if !selected_set.contains(&idx) {
                 selected.push(idx);
                 selected_set.insert(idx);
@@ -961,10 +1050,15 @@ fn select_beam_layer(candidates: &mut Vec<BeamEntry>, width: usize) {
             .filter(|i| !selected_set.contains(i))
             .collect();
         all_by_score.sort_by(|&a, &b| {
-            candidates[a].score.partial_cmp(&candidates[b].score).unwrap_or(std::cmp::Ordering::Equal)
+            candidates[a]
+                .score
+                .partial_cmp(&candidates[b].score)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
         for idx in all_by_score {
-            if selected.len() >= width { break; }
+            if selected.len() >= width {
+                break;
+            }
             selected.push(idx);
         }
     }
@@ -975,9 +1069,20 @@ fn select_beam_layer(candidates: &mut Vec<BeamEntry>, width: usize) {
         kept.push(std::mem::replace(
             &mut candidates[idx],
             BeamEntry {
-                state: DenseState { keeper_zone: 0, box_cells: Vec::new(), moves: 0, pushes: 0 },
-                g_cost: 0, h_cost: 0, score: f64::MAX, push_class: 0, history_id: NO_PARENT,
-                feat_packing: 0, feat_evac: 0, feat_topo: 0,
+                state: DenseState {
+                    keeper_zone: 0,
+                    box_cells: Vec::new(),
+                    moves: 0,
+                    pushes: 0,
+                },
+                g_cost: 0,
+                h_cost: 0,
+                score: f64::MAX,
+                push_class: 0,
+                history_id: NO_PARENT,
+                feat_packing: 0,
+                feat_evac: 0,
+                feat_topo: 0,
             },
         ));
     }
@@ -1021,8 +1126,16 @@ pub fn beam_search(
     let mut history: Vec<HistoryNode> = Vec::new();
     let mut tt = TranspositionTable::new();
     tt.insert(init_hash, 0, 0);
-    let tt_max_entries: usize = if cb.initial_box_cells.len() >= 12 { 200_000 } else { 0 };
-    let tt_window: u32 = if cb.initial_box_cells.len() >= 12 { 5 } else { 0 };
+    let tt_max_entries: usize = if cb.initial_box_cells.len() >= 12 {
+        200_000
+    } else {
+        0
+    };
+    let tt_window: u32 = if cb.initial_box_cells.len() >= 12 {
+        5
+    } else {
+        0
+    };
 
     let commitment_detector = GoalCommitmentDetector::new(cb);
     let goal_access = GoalAccessTable::new(cb);
@@ -1077,7 +1190,15 @@ pub fn beam_search(
 
     let init_smd = plan
         .filter(|p| p.is_active())
-        .map(|p| sum_room_aware_distances(cb, &initial.box_cells, p.rooms(), &goal_rooms, &label_balance))
+        .map(|p| {
+            sum_room_aware_distances(
+                cb,
+                &initial.box_cells,
+                p.rooms(),
+                &goal_rooms,
+                &label_balance,
+            )
+        })
         .unwrap_or_else(|| sum_min_distances(cb, &initial.box_cells));
     let init_wall_pair = wall_adjacent_pair_penalty(cb, &initial.box_cells);
     let init_max_dist = max_offgoal_distance(cb, &initial.box_cells);
@@ -1093,8 +1214,7 @@ pub fn beam_search(
         + config.max_dist_weight * init_max_dist as f64
         + config.premature_x_weight * premature_x_penalty(cb, &initial.box_cells)
         + config.goal_access_weight * init_goal_access as f64
-        + hash_noise(init_hash, config.seed) * config.diversity_weight
-        ; // g_cost = 0 at init, so push_weight * 0 is omitted
+        + hash_noise(init_hash, config.seed) * config.diversity_weight; // g_cost = 0 at init, so push_weight * 0 is omitted
 
     let mut beam = vec![BeamEntry {
         state: initial.clone(),
@@ -1122,7 +1242,9 @@ pub fn beam_search(
     let mut hall_of_fame: Vec<(DenseState, u32, u32)> = Vec::new(); // (state, history_id, packing)
 
     let target_labels: Vec<u8> = if config.endgame_focus_radius.is_some() {
-        initial.box_cells.iter()
+        initial
+            .box_cells
+            .iter()
             .filter(|&&(cell, label)| !cb.goal_matches(cell, label))
             .map(|&(_, label)| label)
             .collect()
@@ -1132,11 +1254,7 @@ pub fn beam_search(
 
     let init_remaining = cb.initial_box_cells.len() as u32 - init_packing;
     let mut best_pack_seen: u32 = if init_remaining <= 3 { init_packing } else { 0 };
-    let mut layers_since_improvement: u32 = if init_remaining <= 3 {
-        40
-    } else {
-        0
-    };
+    let mut layers_since_improvement: u32 = if init_remaining <= 3 { 40 } else { 0 };
     let plateau_threshold: u32 = 40;
 
     for _depth in 0..config.max_depth {
@@ -1185,15 +1303,26 @@ pub fn beam_search(
             } else {
                 config.max_box_branches
             };
-            let mut skip_mask =
-                select_box_skip_mask(cb, &entry.state.box_cells, committed, effective_branches, rooms_ref, &goal_rooms);
+            let mut skip_mask = select_box_skip_mask(
+                cb,
+                &entry.state.box_cells,
+                committed,
+                effective_branches,
+                rooms_ref,
+                &goal_rooms,
+            );
             if let Some(radius) = config.endgame_focus_radius {
                 if plateau_active && remaining_boxes <= 3 {
                     skip_mask |= endgame_focus_mask(cb, &entry.state.box_cells, radius);
                 }
             }
-            let raw_successors =
-                generate_successors_committed(cb, &entry.state, Some(macros), Some(counters), skip_mask);
+            let raw_successors = generate_successors_committed(
+                cb,
+                &entry.state,
+                Some(macros),
+                Some(counters),
+                skip_mask,
+            );
 
             let raw_successors_count = raw_successors.len();
             let use_sequences = cb.initial_box_cells.len() >= 8;
@@ -1202,7 +1331,9 @@ pub fn beam_search(
             } else {
                 (8, 16, 2)
             };
-            let mut successors = Vec::with_capacity(raw_successors.len() * if use_sequences { seq_returned + 1 } else { 1 });
+            let mut successors = Vec::with_capacity(
+                raw_successors.len() * if use_sequences { seq_returned + 1 } else { 1 },
+            );
             if use_sequences {
                 for raw in raw_successors {
                     let box_label = entry.state.box_cells[raw.box_index].1;
@@ -1212,17 +1343,26 @@ pub fn beam_search(
                         let target_room = rm.cell_room(raw.box_target);
                         let at_doorway = rm.is_doorway(box_cell) || rm.is_doorway(raw.box_target);
                         let in_wrong_room = if goal_rooms.active {
-                            cb.goal_cells.iter().enumerate()
+                            cb.goal_cells
+                                .iter()
+                                .enumerate()
                                 .filter(|(_, &(_, gl))| gl.0 == box_label)
-                                .filter_map(|(gi, _)| goal_rooms.goal_room.get(gi).copied().flatten())
+                                .filter_map(|(gi, _)| {
+                                    goal_rooms.goal_room.get(gi).copied().flatten()
+                                })
                                 .any(|gr| box_room != Some(gr))
-                        } else { false };
+                        } else {
+                            false
+                        };
                         let far_from_goal = min_push_distance_to_goal(cb, box_cell, box_label) > 4;
                         (in_wrong_room || at_doorway || box_room != target_room) && far_from_goal
-                    } else { true };
+                    } else {
+                        true
+                    };
 
                     if needs_long_seq {
-                        let endpoints = expand_push_sequence(cb, &raw, seq_depth, seq_explored, seq_returned);
+                        let endpoints =
+                            expand_push_sequence(cb, &raw, seq_depth, seq_explored, seq_returned);
                         if endpoints.is_empty() {
                             successors.push(raw);
                         } else {
@@ -1358,7 +1498,9 @@ pub fn beam_search(
 
                 let doorway_occ = plan
                     .filter(|p| p.is_active())
-                    .map(|p| doorway_traffic_penalty(cb, p.rooms(), &goal_rooms, &succ.state.box_cells))
+                    .map(|p| {
+                        doorway_traffic_penalty(cb, p.rooms(), &goal_rooms, &succ.state.box_cells)
+                    })
                     .unwrap_or(0);
 
                 let packing = goal_packing_count(cb, &succ.state.box_cells);
@@ -1410,7 +1552,11 @@ pub fn beam_search(
                 let rooms_ref = plan.filter(|p| p.is_active()).map(|p| p.rooms());
                 let smd = if let Some(rm) = rooms_ref {
                     sum_room_aware_distances(
-                        cb, &succ.state.box_cells, rm, &goal_rooms, &label_balance,
+                        cb,
+                        &succ.state.box_cells,
+                        rm,
+                        &goal_rooms,
+                        &label_balance,
                     )
                 } else {
                     sum_min_distances(cb, &succ.state.box_cells)
@@ -1428,25 +1574,27 @@ pub fn beam_search(
                 } else {
                     1.0
                 };
-                let adaptive_hw = plateau_dampen * if remaining <= 2 {
-                    config.heuristic_weight * 0.3
-                } else if remaining <= 4 {
-                    config.heuristic_weight * 0.6
-                } else {
-                    config.heuristic_weight
-                };
+                let adaptive_hw = plateau_dampen
+                    * if remaining <= 2 {
+                        config.heuristic_weight * 0.3
+                    } else if remaining <= 4 {
+                        config.heuristic_weight * 0.6
+                    } else {
+                        config.heuristic_weight
+                    };
                 let plateau_div = if plateau_active {
                     config.diversity_weight * 2.0
                 } else {
                     config.diversity_weight
                 };
-                let heuristic_term = if !target_labels.is_empty() && plateau_active && remaining <= 3 {
-                    let tsmd = target_sum_distances(cb, &succ.state.box_cells, &target_labels);
-                    let collateral = smd.saturating_sub(tsmd);
-                    2.0 * tsmd as f64 + 0.05 * collateral as f64
-                } else {
-                    adaptive_hw * smd as f64
-                };
+                let heuristic_term =
+                    if !target_labels.is_empty() && plateau_active && remaining <= 3 {
+                        let tsmd = target_sum_distances(cb, &succ.state.box_cells, &target_labels);
+                        let collateral = smd.saturating_sub(tsmd);
+                        2.0 * tsmd as f64 + 0.05 * collateral as f64
+                    } else {
+                        adaptive_hw * smd as f64
+                    };
                 let score = config.push_weight * g as f64
                     + heuristic_term
                     + config.structural_weight * plateau_dampen * endgame_factor * boost as f64
@@ -1455,12 +1603,18 @@ pub fn beam_search(
                     + config.evacuation_weight * plateau_dampen * endgame_factor * evac as f64
                     + config.move_weight * succ.state.moves as f64
                     - config.goal_packing_weight * plateau_dampen * endgame_factor * packing as f64
-                    - config.typed_packing_weight * plateau_dampen * endgame_factor * typed_pack as f64
+                    - config.typed_packing_weight
+                        * plateau_dampen
+                        * endgame_factor
+                        * typed_pack as f64
                     - config.progress_weight * progress
                     + config.crossing_flow_weight * endgame_factor * flow
                     + config.blocker_weight * endgame_factor * blocker
                     + config.wall_pair_weight * plateau_dampen * endgame_factor * wall_pair as f64
-                    + config.max_dist_weight * plateau_dampen * endgame_factor * succ_max_dist as f64
+                    + config.max_dist_weight
+                        * plateau_dampen
+                        * endgame_factor
+                        * succ_max_dist as f64
                     + config.premature_x_weight * premature_x_penalty(cb, &succ.state.box_cells)
                     + config.goal_access_weight * plateau_dampen * succ_goal_access as f64
                     + plateau_div * noise;
@@ -1505,9 +1659,11 @@ pub fn beam_search(
         counters.update_peak_frontier(candidates.len() as u64);
 
         let min_h = candidates.iter().map(|c| c.h_cost).min().unwrap_or(9999);
-        let max_pack = candidates.iter().map(|c| {
-            goal_packing_count(cb, &c.state.box_cells)
-        }).max().unwrap_or(0);
+        let max_pack = candidates
+            .iter()
+            .map(|c| goal_packing_count(cb, &c.state.box_cells))
+            .max()
+            .unwrap_or(0);
 
         if max_pack > best_pack_seen {
             best_pack_seen = max_pack;
@@ -1519,7 +1675,9 @@ pub fn beam_search(
             layers_since_improvement += 1;
         }
 
-        if _depth < 25 || _depth % 10 == 0 || candidates.len() < effective_width / 2
+        if _depth < 25
+            || _depth % 10 == 0
+            || candidates.len() < effective_width / 2
             || (plateau_active && layers_since_improvement == plateau_threshold)
         {
             eprintln!(
@@ -1530,15 +1688,20 @@ pub fn beam_search(
             );
         }
         if max_pack >= (cb.initial_box_cells.len() as u32).saturating_sub(3) && _depth % 50 == 0 {
-            if let Some(best) = candidates.iter()
-                .max_by_key(|c| c.feat_packing)
-            {
-                let off_goal: Vec<_> = best.state.box_cells.iter().enumerate()
+            if let Some(best) = candidates.iter().max_by_key(|c| c.feat_packing) {
+                let off_goal: Vec<_> = best
+                    .state
+                    .box_cells
+                    .iter()
+                    .enumerate()
                     .filter(|(_, &(cell, label))| !cb.goal_matches(cell, label))
                     .map(|(bi, &(cell, label))| {
                         let pos = cb.cell_to_pos(cell);
                         let d = min_push_distance_to_goal(cb, cell, label);
-                        format!("box{}(label={},r={},c={},dist={})", bi, label, pos.row, pos.col, d)
+                        format!(
+                            "box{}(label={},r={},c={},dist={})",
+                            bi, label, pos.row, pos.col, d
+                        )
                     })
                     .collect();
                 eprintln!("    OFF-GOAL: {}", off_goal.join(", "));
@@ -1556,11 +1719,15 @@ pub fn beam_search(
                 let already_present = hall_of_fame.iter().any(|(s, _, p)| {
                     *p >= entry.feat_packing && s.box_cells == entry.state.box_cells
                 });
-                if already_present { continue; }
+                if already_present {
+                    continue;
+                }
                 if hall_of_fame.len() < 64 {
                     hall_of_fame.push((entry.state.clone(), entry.history_id, entry.feat_packing));
                 } else {
-                    let worst_idx = hall_of_fame.iter().enumerate()
+                    let worst_idx = hall_of_fame
+                        .iter()
+                        .enumerate()
                         .min_by_key(|(_, (s, _, p))| {
                             let h = sum_min_distances(cb, &s.box_cells);
                             (*p, std::cmp::Reverse(h))
@@ -1573,7 +1740,8 @@ pub fn beam_search(
                         if entry.feat_packing > worst_pack
                             || (entry.feat_packing == worst_pack && entry_h < worst_h)
                         {
-                            hall_of_fame[wi] = (entry.state.clone(), entry.history_id, entry.feat_packing);
+                            hall_of_fame[wi] =
+                                (entry.state.clone(), entry.history_id, entry.feat_packing);
                         }
                     }
                 }
@@ -1588,10 +1756,13 @@ pub fn beam_search(
     if local_expanded > 0 {
         eprintln!(
             "  beam(w={},s={}): expanded={} generated={} avg={:.1} prune_fired={}/{}",
-            config.beam_width, config.seed,
-            local_expanded, local_generated,
+            config.beam_width,
+            config.seed,
+            local_expanded,
+            local_generated,
             local_generated as f64 / local_expanded as f64,
-            local_prune_fired, local_expanded,
+            local_prune_fired,
+            local_expanded,
         );
     }
 
@@ -1620,10 +1791,16 @@ pub fn beam_search(
         checkpoints.dedup_by(|(a, _), (b, _)| a.box_cells == b.box_cells);
         checkpoints.truncate(32);
         if checkpoints.is_empty() {
-            if budget.exhausted() { BeamResult::BudgetExceeded } else { BeamResult::NoSolution }
+            if budget.exhausted() {
+                BeamResult::BudgetExceeded
+            } else {
+                BeamResult::NoSolution
+            }
         } else {
             eprintln!("  collected {} endgame checkpoints", checkpoints.len());
-            BeamResult::Checkpoints { states: checkpoints }
+            BeamResult::Checkpoints {
+                states: checkpoints,
+            }
         }
     }
 }
@@ -1724,7 +1901,9 @@ mod tests {
         let rows = &["OOOOO", "OX  O", "O  SO", "O  RO", "OOOOO"];
         let (result, _) = run_beam(rows, BeamConfig::default());
         match result {
-            BeamResult::NoSolution | BeamResult::BudgetExceeded | BeamResult::Checkpoints { .. } => {}
+            BeamResult::NoSolution
+            | BeamResult::BudgetExceeded
+            | BeamResult::Checkpoints { .. } => {}
             BeamResult::Solved { .. } => panic!("should not solve"),
         }
     }

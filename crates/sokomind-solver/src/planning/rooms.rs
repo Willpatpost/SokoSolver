@@ -282,7 +282,10 @@ mod tests {
         let cb = CompiledBoard::from_parsed(&board);
         let rooms = RoomMap::analyze(&cb);
 
-        eprintln!("Grand Hall: {} rooms, {} doorways", rooms.room_count, rooms.doorway_count);
+        eprintln!(
+            "Grand Hall: {} rooms, {} doorways",
+            rooms.room_count, rooms.doorway_count
+        );
 
         for row in 0..15i32 {
             let mut line = String::new();
@@ -292,7 +295,10 @@ mod tests {
                     line.push('#');
                     continue;
                 }
-                let pos = sokomind_core::position::Position { row: row as i16, col: col as i16 };
+                let pos = sokomind_core::position::Position {
+                    row: row as i16,
+                    col: col as i16,
+                };
                 let mut found = false;
                 for cell in 0..cb.cell_count {
                     if cb.cell_to_pos(cell) == pos {
@@ -314,6 +320,9 @@ mod tests {
             eprintln!("{}", line);
         }
 
-        assert!(rooms.room_count >= 2, "Grand Hall should have at least 2 rooms");
+        assert!(
+            rooms.room_count >= 2,
+            "Grand Hall should have at least 2 rooms"
+        );
     }
 }

@@ -14,9 +14,7 @@ use crate::zobrist::ZobristKeys;
 use super::successors::generate_successors_committed;
 
 pub enum EndgameResult {
-    Solved {
-        pushes: Vec<(usize, Direction)>,
-    },
+    Solved { pushes: Vec<(usize, Direction)> },
     NotSolved,
 }
 
@@ -177,8 +175,7 @@ pub fn endgame_focused_search(
         }
 
         let focus_mask = compute_focus_mask(cb, &node.state.box_cells, focus_radius);
-        let successors =
-            generate_successors_committed(cb, &node.state, None, None, focus_mask);
+        let successors = generate_successors_committed(cb, &node.state, None, None, focus_mask);
         counters.generated += successors.len() as u64;
         budget.tick_generated(successors.len() as u64);
 
@@ -245,10 +242,7 @@ pub fn endgame_focused_search(
         }
     }
 
-    eprintln!(
-        "      endgame best_h_seen={}",
-        best_h_seen,
-    );
+    eprintln!("      endgame best_h_seen={}", best_h_seen,);
     EndgameResult::NotSolved
 }
 
@@ -460,8 +454,14 @@ mod tests {
         let initial = DenseState::from_initial(&cb);
 
         match endgame_focused_search(
-            &cb, &initial, &zk, &deadlocks,
-            &mut budget, &mut counters, 4, 2,
+            &cb,
+            &initial,
+            &zk,
+            &deadlocks,
+            &mut budget,
+            &mut counters,
+            4,
+            2,
         ) {
             EndgameResult::Solved { pushes } => {
                 assert!(!pushes.is_empty());
@@ -489,8 +489,14 @@ mod tests {
         let initial = DenseState::from_initial(&cb);
 
         match endgame_focused_search(
-            &cb, &initial, &zk, &deadlocks,
-            &mut budget, &mut counters, 5, 2,
+            &cb,
+            &initial,
+            &zk,
+            &deadlocks,
+            &mut budget,
+            &mut counters,
+            5,
+            2,
         ) {
             EndgameResult::Solved { pushes } => {
                 assert!(pushes.len() >= 2);

@@ -172,10 +172,7 @@ fn single_box_pushes(
     box_cell: u16,
 ) -> Vec<(DenseState, u16, Direction)> {
     let reachable = keeper_reachable(cb, state.keeper_zone, &state.box_cells);
-    let bi = match state
-        .box_cells
-        .binary_search_by_key(&box_cell, |&(c, _)| c)
-    {
+    let bi = match state.box_cells.binary_search_by_key(&box_cell, |&(c, _)| c) {
         Ok(idx) => idx,
         Err(_) => return Vec::new(),
     };
@@ -379,9 +376,9 @@ fn select_diverse_endpoints(
     }
 
     endpoints.sort_by(|a, b| {
-        b.push_count.cmp(&a.push_count).then_with(|| {
-            a.state.moves.cmp(&b.state.moves)
-        })
+        b.push_count
+            .cmp(&a.push_count)
+            .then_with(|| a.state.moves.cmp(&b.state.moves))
     });
 
     let mut selected = Vec::with_capacity(max_returned);

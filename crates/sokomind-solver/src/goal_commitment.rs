@@ -46,7 +46,11 @@ impl GoalCommitmentDetector {
     /// Aggressive commitment: any box on its matching goal is committed if
     /// the remaining boxes can still reach their goals (no corner requirement).
     /// Suitable for endgame search where most boxes are placed.
-    pub fn find_committed_boxes_aggressive(&self, cb: &CompiledBoard, box_cells: &[(u16, u8)]) -> u64 {
+    pub fn find_committed_boxes_aggressive(
+        &self,
+        cb: &CompiledBoard,
+        box_cells: &[(u16, u8)],
+    ) -> u64 {
         let mut mask = 0u64;
 
         for (i, &(cell, label)) in box_cells.iter().enumerate() {
@@ -136,10 +140,7 @@ fn residual_assignment_feasible(
         })
         .collect();
 
-    if cost_matrix
-        .iter()
-        .any(|row| row.iter().all(|&d| d >= cap))
-    {
+    if cost_matrix.iter().any(|row| row.iter().all(|&d| d >= cap)) {
         return false;
     }
 
@@ -182,9 +183,7 @@ mod tests {
 
     #[test]
     fn no_commitment_without_residual_feasibility() {
-        let rows = &[
-            "OOOOOOO", "OSS   O", "O XXR O", "O     O", "OOOOOOO",
-        ];
+        let rows = &["OOOOOOO", "OSS   O", "O XXR O", "O     O", "OOOOOOO"];
         let board = parse_board(rows).unwrap();
         let cb = CompiledBoard::from_parsed(&board);
         let detector = GoalCommitmentDetector::new(&cb);

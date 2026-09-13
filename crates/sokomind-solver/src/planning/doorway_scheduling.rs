@@ -22,11 +22,22 @@ impl DoorwaySchedule {
         let mut box_crossings = Vec::with_capacity(cb.initial_box_cells.len());
 
         for &(box_cell, box_label) in &cb.initial_box_cells {
-            let crossings = min_doorway_crossings_fast(cb, rooms, box_cell, box_label.0, &room_dist_matrix, n_rooms);
+            let crossings = min_doorway_crossings_fast(
+                cb,
+                rooms,
+                box_cell,
+                box_label.0,
+                &room_dist_matrix,
+                n_rooms,
+            );
             box_crossings.push(crossings);
         }
 
-        Self { box_crossings, room_dist_matrix, n_rooms }
+        Self {
+            box_crossings,
+            room_dist_matrix,
+            n_rooms,
+        }
     }
 
     /// Compute crossings needed for a specific box at a given cell.
@@ -53,7 +64,14 @@ impl DoorwaySchedule {
             if cb.goal_matches(cell, label) {
                 continue;
             }
-            let crossings = min_doorway_crossings_fast(cb, rooms, cell, label, &self.room_dist_matrix, self.n_rooms);
+            let crossings = min_doorway_crossings_fast(
+                cb,
+                rooms,
+                cell,
+                label,
+                &self.room_dist_matrix,
+                self.n_rooms,
+            );
             total += crossings as u32;
         }
 
@@ -125,7 +143,10 @@ fn min_doorway_crossings_fast(
                     0
                 } else {
                     let n = n_rooms as usize;
-                    room_dist_matrix.get(br as usize * n + gr as usize).copied().unwrap_or(u16::MAX)
+                    room_dist_matrix
+                        .get(br as usize * n + gr as usize)
+                        .copied()
+                        .unwrap_or(u16::MAX)
                 }
             }
             _ => 0,
@@ -136,7 +157,11 @@ fn min_doorway_crossings_fast(
         }
     }
 
-    if min_crossings == u16::MAX { 0 } else { min_crossings }
+    if min_crossings == u16::MAX {
+        0
+    } else {
+        min_crossings
+    }
 }
 
 /// Compute minimum doorway crossings from a cell to any compatible goal.

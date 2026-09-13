@@ -9,7 +9,9 @@ use sokomind_solver::goal_commitment::GoalCommitmentDetector;
 use sokomind_solver::heuristic::AssignmentHeuristic;
 use sokomind_solver::macros::MacroEngine;
 use sokomind_solver::planning::StructuralPlan;
-use sokomind_solver::search::successors::{generate_successors_committed, generate_successors_with_macros};
+use sokomind_solver::search::successors::{
+    generate_successors_committed, generate_successors_with_macros,
+};
 use sokomind_solver::zobrist::ZobristKeys;
 
 #[test]
@@ -42,7 +44,10 @@ fn beam_trace() {
     eprintln!("Plan: {}", plan.summary());
     eprintln!("Room count: {}", plan.room_count());
     eprintln!("Doorway count: {}", plan.doorway_count());
-    eprintln!("Commitment detector has_potential: {}", commitment.has_potential());
+    eprintln!(
+        "Commitment detector has_potential: {}",
+        commitment.has_potential()
+    );
 
     let initial = DenseState::from_initial(&cb);
 
@@ -57,8 +62,13 @@ fn beam_trace() {
     eprintln!("Initial successors: {}", succs.len());
 
     let committed = commitment.find_committed_boxes(&cb, &initial.box_cells);
-    let succs_committed = generate_successors_committed(&cb, &initial, Some(&macros), None, committed);
-    eprintln!("Initial successors with commitment: {} (committed mask: {:b})", succs_committed.len(), committed);
+    let succs_committed =
+        generate_successors_committed(&cb, &initial, Some(&macros), None, committed);
+    eprintln!(
+        "Initial successors with commitment: {} (committed mask: {:b})",
+        succs_committed.len(),
+        committed
+    );
 
     eprintln!("\nGoals on board:");
     for (i, &(cell, label)) in cb.goal_cells.iter().enumerate() {
@@ -72,14 +82,20 @@ fn beam_trace() {
             let right = cb.neighbor(cell, Direction::Right) == INVALID_CELL;
             (up && left) || (up && right) || (down && left) || (down && right)
         };
-        eprintln!("  goal[{}]: cell={} pos=({},{}) label={} corner={}", i, cell, pos.row, pos.col, label.0, is_corner);
+        eprintln!(
+            "  goal[{}]: cell={} pos=({},{}) label={} corner={}",
+            i, cell, pos.row, pos.col, label.0, is_corner
+        );
     }
 
     eprintln!("\nBoxes in initial state:");
     for (i, &(cell, label)) in initial.box_cells.iter().enumerate() {
         let pos = cb.cell_to_pos(cell);
         let on_goal = cb.goal_matches(cell, label);
-        eprintln!("  box[{}]: cell={} pos=({},{}) label={} on_goal={}", i, cell, pos.row, pos.col, label, on_goal);
+        eprintln!(
+            "  box[{}]: cell={} pos=({},{}) label={} on_goal={}",
+            i, cell, pos.row, pos.col, label, on_goal
+        );
     }
 
     eprintln!("\nRoom assignments for boxes:");

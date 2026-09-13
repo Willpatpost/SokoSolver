@@ -52,8 +52,7 @@ impl TranspositionTable {
     pub fn dominates(&self, hash: u64, pushes: u32, moves: u32) -> bool {
         match self.map.get(&hash) {
             Some(existing) => {
-                existing.pushes < pushes
-                    || (existing.pushes == pushes && existing.moves <= moves)
+                existing.pushes < pushes || (existing.pushes == pushes && existing.moves <= moves)
             }
             None => false,
         }

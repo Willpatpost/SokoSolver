@@ -61,6 +61,16 @@ impl ZobristKeys {
         h
     }
 
+    /// Hash only the box positions (no keeper zone). Useful for caching
+    /// heuristic values which depend only on box placements.
+    pub fn hash_boxes(&self, box_cells: &[(u16, u8)]) -> u64 {
+        let mut h = 0u64;
+        for &(cell, label_group) in box_cells {
+            h ^= self.box_key(label_group, cell);
+        }
+        h
+    }
+
     /// Incremental update: box moved from old_cell to new_cell.
     pub fn update_box_move(&self, hash: u64, label_group: u8, old_cell: u16, new_cell: u16) -> u64 {
         hash ^ self.box_key(label_group, old_cell) ^ self.box_key(label_group, new_cell)

@@ -258,4 +258,62 @@ mod tests {
         let rooms = RoomMap::analyze(&cb);
         assert!(rooms.room_count >= 1);
     }
+
+    #[test]
+    fn grand_hall_room_structure() {
+        let rows: Vec<&str> = vec![
+            "OOOOOOOOOOOOOOO",
+            "OaSS   S   SSbO",
+            "OSCS  OOO  SDSO",
+            "OX X  OOO  X XO",
+            "O     OOO     O",
+            "OOOO   X   OOOO",
+            "O      O      O",
+            "O G hOOOOOH g O",
+            "O      O      O",
+            "OOO         OOO",
+            "OOO   X X   OOO",
+            "OOOOOOOROOOOOOO",
+            "O B X X X X A O",
+            "O Sc       dS O",
+            "OOOOOOOOOOOOOOO",
+        ];
+        let board = parse_board(&rows).unwrap();
+        let cb = CompiledBoard::from_parsed(&board);
+        let rooms = RoomMap::analyze(&cb);
+
+        eprintln!("Grand Hall: {} rooms, {} doorways", rooms.room_count, rooms.doorway_count);
+
+        for row in 0..15i32 {
+            let mut line = String::new();
+            for col in 0..15i32 {
+                let ch = rows[row as usize].as_bytes()[col as usize] as char;
+                if ch == 'O' {
+                    line.push('#');
+                    continue;
+                }
+                let pos = sokomind_core::position::Position { row: row as i16, col: col as i16 };
+                let mut found = false;
+                for cell in 0..cb.cell_count {
+                    if cb.cell_to_pos(cell) == pos {
+                        if rooms.is_doorway(cell) {
+                            line.push('D');
+                        } else if let Some(r) = rooms.cell_room(cell) {
+                            line.push(char::from_digit(r as u32, 36).unwrap_or('?'));
+                        } else {
+                            line.push('?');
+                        }
+                        found = true;
+                        break;
+                    }
+                }
+                if !found {
+                    line.push('.');
+                }
+            }
+            eprintln!("{}", line);
+        }
+
+        assert!(rooms.room_count >= 2, "Grand Hall should have at least 2 rooms");
+    }
 }

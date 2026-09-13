@@ -75,12 +75,18 @@ fn is_direction_blocked(
     cell: u16,
     dir: Direction,
 ) -> bool {
-    let neighbor = cb.neighbor(cell, dir);
-    if neighbor == INVALID_CELL {
+    let target = cb.neighbor(cell, dir);
+    if target == INVALID_CELL {
         return true;
     }
-    if let Some(idx) = box_cells.iter().position(|&(c, _)| c == neighbor) {
-        return frozen[idx];
+    if let Some(idx) = box_cells.iter().position(|&(c, _)| c == target) {
+        if frozen[idx] {
+            return true;
+        }
+    }
+    let behind = cb.neighbor(cell, dir.opposite());
+    if behind == INVALID_CELL {
+        return true;
     }
     false
 }
@@ -103,15 +109,15 @@ mod tests {
 
     #[test]
     fn single_box_in_corner_frozen() {
-        // A single box at (1,1): wall above and left blocks two directions,
-        // but right and down are open floor. Not blocked on either axis.
-        // However, static deadlock catches corners — freeze should NOT fire here.
+        // A single box at (1,1): wall above (0,1) and wall left (1,0)
+        // means the robot can never stand behind the box to push it
+        // right or down. All push directions impossible → frozen off-goal.
         let rows = &["OOOOO", "O  SO", "O XRO", "O   O", "OOOOO"];
         let board = parse_board(rows).unwrap();
         let cb = CompiledBoard::from_parsed(&board);
 
         let corner = cb.pos_to_cell(Position::new(1, 1));
-        assert!(!is_freeze_deadlock(&cb, &[(corner, 0)]));
+        assert!(is_freeze_deadlock(&cb, &[(corner, 0)]));
     }
 
     #[test]
@@ -125,29 +131,27 @@ mod tests {
     }
 
     #[test]
-    fn two_boxes_one_can_slide() {
-        // Two boxes side by side against a wall. (1,2) can slide right,
-        // so neither is frozen.
+    fn two_boxes_one_frozen_against_wall() {
+        // Two boxes side by side against top wall. (1,2) can slide right
+        // (behind is (1,1)=box, not wall), but (1,1) is frozen: wall above
+        // blocks robot from pushing down, wall left blocks pushing right,
+        // and wall behind blocks both remaining push directions.
         let rows = &["OOOOO", "OXX O", "ORSSO", "O   O", "OOOOO"];
         let board = parse_board(rows).unwrap();
         let cb = CompiledBoard::from_parsed(&board);
 
         let b1 = cb.pos_to_cell(Position::new(1, 1));
         let b2 = cb.pos_to_cell(Position::new(1, 2));
-        assert!(!is_freeze_deadlock(&cb, &[(b1, 0), (b2, 0)]));
+        assert!(is_freeze_deadlock(&cb, &[(b1, 0), (b2, 0)]));
     }
 
     #[test]
     fn mutual_freeze_2x2_corner() {
-        // 4 boxes in a 2x2 at (1,1),(1,2),(2,1),(2,2) against top-left corner.
-        // Each box has wall on one side and boxes on the other two non-wall sides.
-        // (1,1): H=wall+box, V=wall+box → frozen
-        // (1,2): H=box+(1,3 open) → can slide right? Only if not frozen.
-        // With pessimistic start: all frozen. (1,2) H: left=(1,1) frozen, right=open → open!
-        // So H is NOT fully blocked → (1,2) unfreezes.
-        // Then (1,1) right neighbor unfrozen → (1,1) H: wall + unfrozen → not blocked.
-        // (1,1) unfreezes. Cascade unfreezes all.
-        // Result: NOT a freeze deadlock (caught by 2x2 detector instead).
+        // 4 boxes in 2x2 at (1,1),(1,2),(2,1),(2,2) against top-left corner.
+        // (1,2),(2,2),(2,1) unfreeze because their "behind" cells are other
+        // boxes (not walls), so the robot could potentially reach behind them.
+        // But (1,1) stays frozen: wall left + wall above means the robot can
+        // never stand behind it on either axis → frozen off-goal = deadlock.
         let rows = &[
             "OOOOOOO", "OXX   O", "OXX   O", "OR    O", "O  SS O", "O  SS O", "OOOOOOO",
         ];
@@ -158,9 +162,7 @@ mod tests {
         let b2 = cb.pos_to_cell(Position::new(1, 2));
         let b3 = cb.pos_to_cell(Position::new(2, 1));
         let b4 = cb.pos_to_cell(Position::new(2, 2));
-        // 2x2 in corner with open sides: freeze should NOT detect this
-        // (2x2 detector handles it). Boxes can theoretically slide out.
-        assert!(!is_freeze_deadlock(
+        assert!(is_freeze_deadlock(
             &cb,
             &[(b1, 0), (b2, 0), (b3, 0), (b4, 0)]
         ));
@@ -169,23 +171,16 @@ mod tests {
     #[test]
     fn freeze_in_wall_channel() {
         // Two boxes stacked vertically in a 1-wide channel between walls.
-        // OOOOOO
-        // OXO  O
-        // OXO  O
-        // OR   O
-        // O SS O
-        // OOOOOO
-        // Box (1,1): H=wall-wall, V=wall-box → frozen if (2,1) frozen
-        // Box (2,1): H=wall-wall, V=box-open → NOT frozen (can move down)
-        // So (1,1) V: up=wall, down=(2,1) unfrozen → not fully blocked → unfreezes
-        // Neither frozen. Not a deadlock.
+        // (2,1) unfreezes: Down's behind=(1,1)=box, not wall.
+        // (1,1) stays frozen: H=wall-wall, and for V: Down's behind=(0,1)=wall,
+        // Up target=(0,1)=wall. Robot can never stand above to push down.
         let rows = &["OOOOOO", "OXO  O", "OXO  O", "OR   O", "O SS O", "OOOOOO"];
         let board = parse_board(rows).unwrap();
         let cb = CompiledBoard::from_parsed(&board);
 
         let b1 = cb.pos_to_cell(Position::new(1, 1));
         let b2 = cb.pos_to_cell(Position::new(2, 1));
-        assert!(!is_freeze_deadlock(&cb, &[(b1, 0), (b2, 0)]));
+        assert!(is_freeze_deadlock(&cb, &[(b1, 0), (b2, 0)]));
     }
 
     #[test]

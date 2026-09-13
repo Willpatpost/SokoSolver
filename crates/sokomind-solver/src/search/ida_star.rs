@@ -34,7 +34,7 @@ pub fn ida_star_search(
     upper_bound: Option<u32>,
 ) -> IDAStarResult {
     let init_hash = initial.zobrist_hash(zk);
-    let h = heuristic.evaluate(cb, initial, init_hash);
+    let h = heuristic.evaluate(cb, initial, zk.hash_boxes(&initial.box_cells));
     counters.heuristic_calls += 1;
 
     if h == u32::MAX {
@@ -107,9 +107,9 @@ fn dfs(
         return DfsResult::BudgetExceeded;
     }
 
-    let (current, current_hash) = path.last().unwrap();
+    let (current, _current_hash) = path.last().unwrap();
 
-    let h = heuristic.evaluate(cb, current, *current_hash);
+    let h = heuristic.evaluate(cb, current, zk.hash_boxes(&current.box_cells));
     counters.heuristic_calls += 1;
     let f = g.saturating_add(h);
 

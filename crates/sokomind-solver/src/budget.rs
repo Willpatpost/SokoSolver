@@ -85,6 +85,10 @@ impl Budget {
         }
     }
 
+    pub fn time_limit_ms(&self) -> Option<u64> {
+        self.limits.max_time_ms
+    }
+
     pub fn expanded(&self) -> u64 {
         self.expanded
     }

@@ -1,3 +1,4 @@
+use rustc_hash::FxHashSet;
 use sokomind_core::position::Direction;
 
 use crate::compiled_board::{CompiledBoard, INVALID_CELL};
@@ -7,12 +8,19 @@ use crate::macros::MacroEngine;
 use crate::reachability::{canonical_keeper, keeper_reachable};
 
 /// A push successor: moving a box in a direction.
+/// For multi-push sequences, `push_trace` contains all individual pushes.
 #[derive(Clone, Debug)]
 pub struct PushSuccessor {
     pub state: DenseState,
     pub box_index: usize,
     pub direction: Direction,
     pub push_count: u32,
+    /// For push sequences with push_count > 1, this contains each
+    /// intermediate (box_index, direction) push in order. Empty for
+    /// single-push successors.
+    pub push_trace: Vec<(usize, Direction)>,
+    /// Cell where the pushed box ended up (correct even after box_cells sorting).
+    pub box_target: u16,
 }
 
 /// Generate all legal push successors from the current state.
@@ -32,6 +40,26 @@ pub fn generate_successors_with_macros(
     macros: Option<&MacroEngine>,
     counters: Option<&mut SearchCounters>,
 ) -> Vec<PushSuccessor> {
+    generate_successors_inner(cb, state, macros, counters, 0)
+}
+
+pub fn generate_successors_committed(
+    cb: &CompiledBoard,
+    state: &DenseState,
+    macros: Option<&MacroEngine>,
+    counters: Option<&mut SearchCounters>,
+    committed_mask: u64,
+) -> Vec<PushSuccessor> {
+    generate_successors_inner(cb, state, macros, counters, committed_mask)
+}
+
+fn generate_successors_inner(
+    cb: &CompiledBoard,
+    state: &DenseState,
+    macros: Option<&MacroEngine>,
+    counters: Option<&mut SearchCounters>,
+    committed_mask: u64,
+) -> Vec<PushSuccessor> {
     let mut successors = Vec::new();
     let reachable = keeper_reachable(cb, state.keeper_zone, &state.box_cells);
 
@@ -39,7 +67,13 @@ pub fn generate_successors_with_macros(
     let mut goal_count = 0u64;
 
     for (bi, &(box_cell, label)) in state.box_cells.iter().enumerate() {
-        // Goal macro: skip boxes committed to safe goals.
+        // Dynamic goal commitment: skip boxes committed via residual matching.
+        if bi < 64 && (committed_mask & (1u64 << bi)) != 0 {
+            goal_count += 1;
+            continue;
+        }
+
+        // Static goal macro: skip boxes committed to safe corner goals.
         if let Some(me) = macros {
             if me.safe_goals.is_committed(cb, box_cell, label) {
                 goal_count += 1;
@@ -116,6 +150,8 @@ pub fn generate_successors_with_macros(
                 box_index: bi,
                 direction: dir,
                 push_count: total_pushes,
+                push_trace: Vec::new(),
+                box_target: final_target,
             });
         }
     }
@@ -126,6 +162,254 @@ pub fn generate_successors_with_macros(
     }
 
     successors
+}
+
+/// Generate single-box push continuations from a state, pushing only the
+/// box at `box_cell` in all legal directions. Used by push-sequence expansion.
+fn single_box_pushes(
+    cb: &CompiledBoard,
+    state: &DenseState,
+    box_cell: u16,
+) -> Vec<(DenseState, u16, Direction)> {
+    let reachable = keeper_reachable(cb, state.keeper_zone, &state.box_cells);
+    let bi = match state
+        .box_cells
+        .binary_search_by_key(&box_cell, |&(c, _)| c)
+    {
+        Ok(idx) => idx,
+        Err(_) => return Vec::new(),
+    };
+
+    let label = state.box_cells[bi].1;
+    let mut results = Vec::new();
+
+    for dir in Direction::ALL {
+        let target = cb.neighbor(box_cell, dir);
+        if target == INVALID_CELL {
+            continue;
+        }
+        if state
+            .box_cells
+            .binary_search_by_key(&target, |&(c, _)| c)
+            .is_ok()
+        {
+            continue;
+        }
+        let push_from = cb.neighbor(box_cell, dir.opposite());
+        if push_from == INVALID_CELL {
+            continue;
+        }
+        if state
+            .box_cells
+            .binary_search_by_key(&push_from, |&(c, _)| c)
+            .is_ok()
+        {
+            continue;
+        }
+        if !reachable[push_from as usize] {
+            continue;
+        }
+
+        let mut new_box_cells = state.box_cells.clone();
+        new_box_cells[bi] = (target, label);
+        new_box_cells.sort();
+        let new_keeper_zone = canonical_keeper(cb, box_cell, &new_box_cells);
+
+        results.push((
+            DenseState {
+                keeper_zone: new_keeper_zone,
+                box_cells: new_box_cells,
+                moves: state.moves + 1,
+                pushes: state.pushes + 1,
+            },
+            target,
+            dir,
+        ));
+    }
+
+    results
+}
+
+/// Expand a push successor into a sequence of multi-push endpoints by
+/// following the same box through corridors and decision points.
+///
+/// Returns up to `max_returned` diverse endpoints (different box destinations).
+/// Each endpoint represents pushing the same box multiple times in succession.
+/// The `push_trace` field of each returned successor contains the full sequence
+/// of (box_index_in_sorted_cells, direction) pairs for solution reconstruction.
+pub fn expand_push_sequence(
+    cb: &CompiledBoard,
+    initial_succ: &PushSuccessor,
+    max_depth: u32,
+    max_explored: usize,
+    max_returned: usize,
+) -> Vec<PushSuccessor> {
+    let initial_box_cell = initial_succ.box_target;
+
+    struct SeqState {
+        state: DenseState,
+        box_cell: u16,
+        push_count: u32,
+        direction: Direction,
+        trace: Vec<(usize, Direction)>,
+    }
+
+    // Build initial trace: the first push's box_index in the initial state's sorted cells
+    let initial_trace = vec![(initial_succ.box_index, initial_succ.direction)];
+
+    let mut queue = vec![SeqState {
+        state: initial_succ.state.clone(),
+        box_cell: initial_box_cell,
+        push_count: initial_succ.push_count,
+        direction: initial_succ.direction,
+        trace: initial_trace,
+    }];
+
+    let mut endpoints: Vec<PushSuccessor> = Vec::new();
+    let mut seen = FxHashSet::default();
+    seen.insert(state_signature(&initial_succ.state));
+    let mut head = 0;
+
+    while head < queue.len() && queue.len() < max_explored {
+        let current_push_count = queue[head].push_count;
+        let current_box_cell = queue[head].box_cell;
+
+        if current_push_count >= max_depth {
+            let s = &queue[head];
+            endpoints.push(PushSuccessor {
+                state: s.state.clone(),
+                box_index: initial_succ.box_index,
+                direction: s.direction,
+                push_count: s.push_count,
+                push_trace: s.trace.clone(),
+                box_target: s.box_cell,
+            });
+            head += 1;
+            continue;
+        }
+
+        let continuations = single_box_pushes(cb, &queue[head].state, current_box_cell);
+
+        if continuations.is_empty() || continuations.len() > 1 {
+            let s = &queue[head];
+            endpoints.push(PushSuccessor {
+                state: s.state.clone(),
+                box_index: initial_succ.box_index,
+                direction: s.direction,
+                push_count: s.push_count,
+                push_trace: s.trace.clone(),
+                box_target: s.box_cell,
+            });
+        }
+
+        for (next_state, next_box_cell, next_dir) in continuations {
+            let sig = state_signature(&next_state);
+            if seen.contains(&sig) {
+                continue;
+            }
+            seen.insert(sig);
+
+            let bi_before_push = queue[head]
+                .state
+                .box_cells
+                .binary_search_by_key(&current_box_cell, |&(c, _)| c)
+                .unwrap_or(initial_succ.box_index);
+
+            let mut trace = queue[head].trace.clone();
+            trace.push((bi_before_push, next_dir));
+
+            if next_state.is_solved(cb) {
+                endpoints.push(PushSuccessor {
+                    state: next_state,
+                    box_index: initial_succ.box_index,
+                    direction: next_dir,
+                    push_count: current_push_count + 1,
+                    push_trace: trace,
+                    box_target: next_box_cell,
+                });
+                continue;
+            }
+
+            queue.push(SeqState {
+                state: next_state,
+                box_cell: next_box_cell,
+                push_count: current_push_count + 1,
+                direction: next_dir,
+                trace,
+            });
+
+            if queue.len() >= max_explored {
+                break;
+            }
+        }
+
+        head += 1;
+    }
+
+    for s in queue.iter().skip(head) {
+        endpoints.push(PushSuccessor {
+            state: s.state.clone(),
+            box_index: initial_succ.box_index,
+            direction: s.direction,
+            push_count: s.push_count,
+            push_trace: s.trace.clone(),
+            box_target: s.box_cell,
+        });
+    }
+
+    select_diverse_endpoints(endpoints, max_returned, initial_succ.box_index)
+}
+
+fn state_signature(state: &DenseState) -> u64 {
+    let mut h: u64 = 0xcbf29ce484222325;
+    h = h.wrapping_mul(0x100000001b3) ^ state.keeper_zone as u64;
+    for &(cell, label) in &state.box_cells {
+        h = h.wrapping_mul(0x100000001b3) ^ ((cell as u64) << 8 | label as u64);
+    }
+    h
+}
+
+fn select_diverse_endpoints(
+    mut endpoints: Vec<PushSuccessor>,
+    max_returned: usize,
+    _box_index: usize,
+) -> Vec<PushSuccessor> {
+    if endpoints.len() <= max_returned {
+        return endpoints;
+    }
+
+    endpoints.sort_by(|a, b| {
+        b.push_count.cmp(&a.push_count).then_with(|| {
+            a.state.moves.cmp(&b.state.moves)
+        })
+    });
+
+    let mut selected = Vec::with_capacity(max_returned);
+    let mut seen_destinations = FxHashSet::default();
+
+    // First pass: pick unique destinations
+    for ep in &endpoints {
+        if selected.len() >= max_returned {
+            break;
+        }
+        let dest = ep.box_target;
+        if seen_destinations.insert(dest) {
+            selected.push(ep.clone());
+        }
+    }
+
+    // Second pass: fill remaining slots
+    for ep in &endpoints {
+        if selected.len() >= max_returned {
+            break;
+        }
+        let sig = state_signature(&ep.state);
+        if !selected.iter().any(|s| state_signature(&s.state) == sig) {
+            selected.push(ep.clone());
+        }
+    }
+
+    selected
 }
 
 #[cfg(test)]

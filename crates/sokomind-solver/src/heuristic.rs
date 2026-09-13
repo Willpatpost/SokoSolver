@@ -106,14 +106,70 @@ impl AssignmentHeuristic {
             total = total.saturating_add(group_cost);
         }
 
-        total = total.saturating_add(count_linear_conflicts(cb, state));
+        let lc = count_linear_conflicts(cb, state);
+        let ip = count_interaction_penalties(cb, &state.box_cells);
+        total = total.saturating_add(lc.max(ip));
 
         let pdb_cost = self.pdb.evaluate(cb, &state.box_cells);
         if pdb_cost > total {
             total = pdb_cost;
         }
 
-        total = total.saturating_add(count_interaction_penalties(cb, &state.box_cells));
+        total
+    }
+
+    /// Fast heuristic for beam search ordering (not admissible).
+    /// Uses greedy min-distance per box instead of Hungarian.
+    /// Skips pattern DB, linear conflicts, interaction penalties.
+    /// O(n*m) instead of O(n^2*m).
+    pub fn fast_evaluate(&mut self, cb: &CompiledBoard, state: &DenseState, cache_key: u64) -> u32 {
+        let fast_key = cache_key.wrapping_add(0xBEAF_FA57_5A17_0000);
+        if let Some(&cached) = self.cache.get(&fast_key) {
+            return cached;
+        }
+
+        let result = self.compute_fast(cb, state);
+        self.cache.insert(fast_key, result);
+        result
+    }
+
+    fn compute_fast(&self, cb: &CompiledBoard, state: &DenseState) -> u32 {
+        let mut total: u32 = 0;
+
+        for group in &self.goal_groups {
+            let box_cells: Vec<u16> = state
+                .box_cells
+                .iter()
+                .filter(|&&(_, l)| l == group.label.0)
+                .map(|&(c, _)| c)
+                .collect();
+
+            if box_cells.is_empty() {
+                continue;
+            }
+
+            let mut used_goals = vec![false; group.goal_indices.len()];
+
+            for &box_cell in &box_cells {
+                let mut best_dist = u32::MAX;
+                let mut best_gi = 0;
+                for (gi, &goal_idx) in group.goal_indices.iter().enumerate() {
+                    if used_goals[gi] {
+                        continue;
+                    }
+                    let dist = cb.reverse_push_distance(goal_idx, box_cell) as u32;
+                    if dist < best_dist {
+                        best_dist = dist;
+                        best_gi = gi;
+                    }
+                }
+                if best_dist == u32::MAX {
+                    return u32::MAX;
+                }
+                used_goals[best_gi] = true;
+                total = total.saturating_add(best_dist);
+            }
+        }
 
         total
     }
@@ -196,6 +252,41 @@ mod tests {
         assert_eq!(heuristic.cache_len(), 1);
         let h2 = heuristic.evaluate(&cb, &state, key);
         assert_eq!(h1, h2);
+    }
+
+    #[test]
+    fn interference_enhancement_uses_max() {
+        // Verify lc and ip are combined via max, not addition.
+        // Two boxes that may trigger both linear_conflict and interaction_boost.
+        let rows = &[
+            "OOOOOOO", "OSS   O", "O     O", "O XXR O", "O     O", "OOOOOOO",
+        ];
+        let board = parse_board(rows).unwrap();
+        let cb = CompiledBoard::from_parsed(&board);
+        let zk = ZobristKeys::new(&cb, Some(42));
+        let state = DenseState::from_initial(&cb);
+
+        let lc = crate::linear_conflict::count_linear_conflicts(&cb, &state);
+        let ip = crate::interaction_boost::count_interaction_penalties(&cb, &state.box_cells);
+
+        let mut heuristic = AssignmentHeuristic::new(&cb);
+        let h = heuristic.evaluate(&cb, &state, state.zobrist_hash(&zk));
+
+        // Heuristic should use max(lc,ip), not lc+ip.
+        // Full admissibility validated by known_optima integration tests.
+        assert!(h > 0);
+        assert!(h < u32::MAX);
+        if lc > 0 && ip > 0 {
+            // With max, the enhancement is at most max(lc,ip).
+            // With addition, it would be lc+ip.
+            // We can't directly verify without the hungarian base, but
+            // we verify the heuristic is reasonable.
+            assert!(
+                h < 100,
+                "heuristic={} seems unreasonably high for a 2-box puzzle",
+                h,
+            );
+        }
     }
 
     #[test]

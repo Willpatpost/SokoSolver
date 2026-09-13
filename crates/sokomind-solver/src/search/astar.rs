@@ -51,8 +51,36 @@ pub fn astar_search(
     budget: &mut Budget,
     counters: &mut SearchCounters,
 ) -> AStarResult {
+    astar_search_inner(cb, initial, zk, heuristic, deadlocks, budget, counters, false)
+}
+
+/// A* search using only quick deadlock checks (no pi-corral).
+/// Useful for endgame from high-packing checkpoints where pi-corral is too aggressive.
+pub fn astar_search_quick(
+    cb: &CompiledBoard,
+    initial: &DenseState,
+    zk: &ZobristKeys,
+    heuristic: &mut AssignmentHeuristic,
+    deadlocks: &DeadlockChecker,
+    budget: &mut Budget,
+    counters: &mut SearchCounters,
+) -> AStarResult {
+    astar_search_inner(cb, initial, zk, heuristic, deadlocks, budget, counters, true)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn astar_search_inner(
+    cb: &CompiledBoard,
+    initial: &DenseState,
+    zk: &ZobristKeys,
+    heuristic: &mut AssignmentHeuristic,
+    deadlocks: &DeadlockChecker,
+    budget: &mut Budget,
+    counters: &mut SearchCounters,
+    quick_deadlock_only: bool,
+) -> AStarResult {
     let init_hash = initial.zobrist_hash(zk);
-    let h = heuristic.evaluate(cb, initial, init_hash);
+    let h = heuristic.evaluate(cb, initial, zk.hash_boxes(&initial.box_cells));
     counters.heuristic_calls += 1;
 
     if h == u32::MAX {
@@ -113,8 +141,12 @@ pub fn astar_search(
         budget.tick_generated(successors.len() as u64);
 
         for succ in successors {
-            if deadlocks.is_deadlocked(cb, succ.state.keeper_zone, &succ.state.box_cells, counters)
-            {
+            let is_dead = if quick_deadlock_only {
+                deadlocks.is_deadlocked_quick(cb, &succ.state.box_cells)
+            } else {
+                deadlocks.is_deadlocked(cb, succ.state.keeper_zone, &succ.state.box_cells, counters)
+            };
+            if is_dead {
                 continue;
             }
 
@@ -127,7 +159,7 @@ pub fn astar_search(
             }
             counters.transposition_unique += 1;
 
-            let h = heuristic.evaluate(cb, &succ.state, succ_hash);
+            let h = heuristic.evaluate(cb, &succ.state, zk.hash_boxes(&succ.state.box_cells));
             counters.heuristic_calls += 1;
             if h == u32::MAX {
                 continue;

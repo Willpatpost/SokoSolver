@@ -60,6 +60,61 @@ const KNOWN_OPTIMA: &[KnownOptimum] = &[
         rows: &["OOOOO", "O  SO", "O X O", "O R O", "OOOOO"],
         optimal_pushes: 2,
     },
+    // ── Medium puzzles (3-5 boxes) ──
+    KnownOptimum {
+        name: "3box-straight",
+        rows: &[
+            "OOOOOOO",
+            "OSSS  O",
+            "O     O",
+            "OXXX  O",
+            "O  R  O",
+            "O     O",
+            "OOOOOOO",
+        ],
+        optimal_pushes: 6,
+    },
+    KnownOptimum {
+        name: "3box-tall",
+        rows: &[
+            "OOOOOOO",
+            "O SSS O",
+            "O     O",
+            "O     O",
+            "O XXX O",
+            "O  R  O",
+            "O     O",
+            "OOOOOOO",
+        ],
+        optimal_pushes: 9,
+    },
+    KnownOptimum {
+        name: "4box-separated",
+        rows: &[
+            "OOOOOOOOO",
+            "O S   S O",
+            "O       O",
+            "O X   X O",
+            "O   R   O",
+            "O X   X O",
+            "O       O",
+            "O S   S O",
+            "OOOOOOOOO",
+        ],
+        optimal_pushes: 8,
+    },
+    KnownOptimum {
+        name: "5box-wide",
+        rows: &[
+            "OOOOOOOOO",
+            "OSSSSS  O",
+            "O       O",
+            "OXXXXXR O",
+            "O       O",
+            "OOOOOOOOO",
+        ],
+        optimal_pushes: 10,
+    },
 ];
 
 #[test]

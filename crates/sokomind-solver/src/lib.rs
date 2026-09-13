@@ -6,6 +6,7 @@ pub mod config;
 pub mod counters;
 pub mod deadlock;
 pub mod dense_state;
+pub mod goal_commitment;
 pub mod exact_state;
 pub mod heuristic;
 pub mod improvement;

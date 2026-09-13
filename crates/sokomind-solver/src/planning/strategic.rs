@@ -68,6 +68,21 @@ impl StructuralPlan {
         corral_boost + crossing_cost
     }
 
+    /// Count how many boxes occupy doorway cells without being on a matching goal.
+    /// Each such box blocks inter-room traffic and should be penalized.
+    pub fn doorway_occupancy(&self, cb: &CompiledBoard, box_cells: &[(u16, u8)]) -> u32 {
+        if !self.has_structure {
+            return 0;
+        }
+        let mut count = 0u32;
+        for &(cell, label) in box_cells {
+            if self.rooms.is_doorway(cell) && !cb.goal_matches(cell, label) {
+                count += 1;
+            }
+        }
+        count
+    }
+
     pub fn rooms(&self) -> &RoomMap {
         &self.rooms
     }

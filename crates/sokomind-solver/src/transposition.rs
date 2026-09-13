@@ -46,6 +46,19 @@ impl TranspositionTable {
         }
     }
 
+    /// Returns true if the table already contains this hash with equal or
+    /// better cost, meaning the proposed state is dominated and should be
+    /// skipped. Does NOT insert.
+    pub fn dominates(&self, hash: u64, pushes: u32, moves: u32) -> bool {
+        match self.map.get(&hash) {
+            Some(existing) => {
+                existing.pushes < pushes
+                    || (existing.pushes == pushes && existing.moves <= moves)
+            }
+            None => false,
+        }
+    }
+
     pub fn get(&self, hash: u64) -> Option<&TranspositionEntry> {
         self.map.get(&hash)
     }

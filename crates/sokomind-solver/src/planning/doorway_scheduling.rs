@@ -10,22 +10,23 @@ use super::rooms::RoomMap;
 /// more likely to block other boxes if left until last).
 pub struct DoorwaySchedule {
     box_crossings: Vec<u16>,
+    room_dist_matrix: Vec<u16>,
+    n_rooms: u16,
 }
 
 impl DoorwaySchedule {
-    /// Build a doorway schedule from the current board state.
-    ///
-    /// For each initial box, counts how many room boundaries (doorway
-    /// crossings) separate it from its nearest compatible goal.
     pub fn build(cb: &CompiledBoard, rooms: &RoomMap) -> Self {
+        let n_rooms = rooms.room_count;
+        let room_dist_matrix = precompute_room_distances(rooms, cb);
+
         let mut box_crossings = Vec::with_capacity(cb.initial_box_cells.len());
 
         for &(box_cell, box_label) in &cb.initial_box_cells {
-            let crossings = min_doorway_crossings(cb, rooms, box_cell, box_label.0);
+            let crossings = min_doorway_crossings_fast(cb, rooms, box_cell, box_label.0, &room_dist_matrix, n_rooms);
             box_crossings.push(crossings);
         }
 
-        Self { box_crossings }
+        Self { box_crossings, room_dist_matrix, n_rooms }
     }
 
     /// Compute crossings needed for a specific box at a given cell.
@@ -52,7 +53,7 @@ impl DoorwaySchedule {
             if cb.goal_matches(cell, label) {
                 continue;
             }
-            let crossings = min_doorway_crossings(cb, rooms, cell, label);
+            let crossings = min_doorway_crossings_fast(cb, rooms, cell, label, &self.room_dist_matrix, self.n_rooms);
             total += crossings as u32;
         }
 
@@ -62,6 +63,80 @@ impl DoorwaySchedule {
     pub fn max_crossings(&self) -> u16 {
         self.box_crossings.iter().copied().max().unwrap_or(0)
     }
+}
+
+fn precompute_room_distances(rooms: &RoomMap, cb: &CompiledBoard) -> Vec<u16> {
+    let n = rooms.room_count as usize;
+    if n == 0 {
+        return Vec::new();
+    }
+    let adj = build_room_adj(rooms, cb);
+    let mut matrix = vec![u16::MAX; n * n];
+    for from in 0..n {
+        matrix[from * n + from] = 0;
+        let mut queue = std::collections::VecDeque::new();
+        queue.push_back(from);
+        while let Some(room) = queue.pop_front() {
+            let d = matrix[from * n + room];
+            if let Some(neighbors) = adj.get(room) {
+                for &nb in neighbors {
+                    let nb = nb as usize;
+                    if matrix[from * n + nb] > d + 1 {
+                        matrix[from * n + nb] = d + 1;
+                        queue.push_back(nb);
+                    }
+                }
+            }
+        }
+    }
+    matrix
+}
+
+fn min_doorway_crossings_fast(
+    cb: &CompiledBoard,
+    rooms: &RoomMap,
+    cell: u16,
+    label: u8,
+    room_dist_matrix: &[u16],
+    n_rooms: u16,
+) -> u16 {
+    let box_room = if rooms.is_doorway(cell) {
+        None
+    } else {
+        rooms.cell_room(cell)
+    };
+
+    let mut min_crossings = u16::MAX;
+
+    for &(goal_cell, goal_label) in &cb.goal_cells {
+        if goal_label.0 != label {
+            continue;
+        }
+
+        let goal_room = if rooms.is_doorway(goal_cell) {
+            None
+        } else {
+            rooms.cell_room(goal_cell)
+        };
+
+        let crossings = match (box_room, goal_room) {
+            (Some(br), Some(gr)) => {
+                if br == gr {
+                    0
+                } else {
+                    let n = n_rooms as usize;
+                    room_dist_matrix.get(br as usize * n + gr as usize).copied().unwrap_or(u16::MAX)
+                }
+            }
+            _ => 0,
+        };
+
+        if crossings < min_crossings {
+            min_crossings = crossings;
+        }
+    }
+
+    if min_crossings == u16::MAX { 0 } else { min_crossings }
 }
 
 /// Compute minimum doorway crossings from a cell to any compatible goal.

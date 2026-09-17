@@ -49,7 +49,7 @@ fn parse_request(puzzle_json: &str, options_json: &str) -> Result<SolverRequest,
 
     let snapshot = create_snapshot(&board);
 
-    let mode = match opts.mode.as_str() {
+    let mode = match opts.mode.to_ascii_lowercase().as_str() {
         "fast" => SolverMode::Fast,
         "quality" => SolverMode::Quality,
         "optimal" => SolverMode::Optimal,

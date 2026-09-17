@@ -1,7 +1,7 @@
 import type { WorkerCommand, WorkerEnvelope, WorkerResponse } from "./protocol.ts";
 import { PROTOCOL_VERSION } from "./protocol.ts";
 
-let wasmModule: typeof import("./wasm/sokomind_solver.js") | null = null;
+let wasmModule: typeof import("./wasm/sokomind_wasm.js") | null = null;
 let cancelled = false;
 
 function sendResponse(payload: WorkerResponse): void {
@@ -12,9 +12,9 @@ function sendResponse(payload: WorkerResponse): void {
   self.postMessage(envelope);
 }
 
-async function ensureWasm(): Promise<typeof import("./wasm/sokomind_solver.js")> {
+async function ensureWasm(): Promise<typeof import("./wasm/sokomind_wasm.js")> {
   if (wasmModule) return wasmModule;
-  const mod = await import("./wasm/sokomind_solver.js");
+  const mod = await import("./wasm/sokomind_wasm.js");
   await mod.default();
   wasmModule = mod;
   return mod;

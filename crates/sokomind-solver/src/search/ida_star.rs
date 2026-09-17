@@ -147,16 +147,7 @@ fn dfs(
         push_path.push((succ.box_index, succ.direction));
 
         let result = dfs(
-            cb,
-            zk,
-            heuristic,
-            deadlocks,
-            budget,
-            counters,
-            path,
-            push_path,
-            child_g,
-            threshold,
+            cb, zk, heuristic, deadlocks, budget, counters, path, push_path, child_g, threshold,
         );
 
         match result {

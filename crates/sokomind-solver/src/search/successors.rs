@@ -112,8 +112,8 @@ fn generate_successors_inner(
                 continue;
             }
 
-            let walk_cost = keeper_distance(cb, state.keeper_cell, push_from, &state.box_cells)
-                .unwrap_or(0);
+            let walk_cost =
+                keeper_distance(cb, state.keeper_cell, push_from, &state.box_cells).unwrap_or(0);
 
             let (final_target, extra_pushes) = if let Some(me) = macros {
                 match me.tunnels.apply_tunnel(cb, target, dir, &state.box_cells) {

@@ -76,6 +76,7 @@ fn replay_pushes(cb: &CompiledBoard, pushes: &[(usize, Direction)]) -> DenseStat
 
     let keeper_zone = canonical_keeper(cb, keeper, &box_cells);
     DenseState {
+        keeper_cell: keeper,
         keeper_zone,
         box_cells,
         moves: 0,

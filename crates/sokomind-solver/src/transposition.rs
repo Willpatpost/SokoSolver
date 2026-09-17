@@ -27,12 +27,12 @@ impl TranspositionTable {
     }
 
     /// Try to insert a state. Returns true if this is a new state or improves
-    /// on the existing entry (fewer pushes, or same pushes with fewer moves).
+    /// on the existing entry. Move-optimal: fewer moves is strictly better;
+    /// ties broken by fewer pushes.
     pub fn insert(&mut self, hash: u64, pushes: u32, moves: u32) -> bool {
         match self.map.get(&hash) {
             Some(existing) => {
-                if pushes < existing.pushes || (pushes == existing.pushes && moves < existing.moves)
-                {
+                if moves < existing.moves || (moves == existing.moves && pushes < existing.pushes) {
                     self.map.insert(hash, TranspositionEntry { pushes, moves });
                     true
                 } else {
@@ -48,11 +48,11 @@ impl TranspositionTable {
 
     /// Returns true if the table already contains this hash with equal or
     /// better cost, meaning the proposed state is dominated and should be
-    /// skipped. Does NOT insert.
+    /// skipped. Move-optimal: compares moves first, then pushes. Does NOT insert.
     pub fn dominates(&self, hash: u64, pushes: u32, moves: u32) -> bool {
         match self.map.get(&hash) {
             Some(existing) => {
-                existing.pushes < pushes || (existing.pushes == pushes && existing.moves <= moves)
+                existing.moves < moves || (existing.moves == moves && existing.pushes <= pushes)
             }
             None => false,
         }
@@ -102,24 +102,44 @@ mod tests {
         let mut tt = TranspositionTable::new();
         tt.insert(123, 5, 20);
         assert!(!tt.insert(123, 5, 20));
-        assert!(!tt.insert(123, 6, 10));
+        // More pushes but fewer moves: this IS an improvement (move-primary).
+        assert!(tt.insert(123, 6, 10));
     }
 
     #[test]
-    fn better_pushes_replaces() {
+    fn fewer_moves_replaces() {
         let mut tt = TranspositionTable::new();
         tt.insert(123, 5, 20);
-        assert!(tt.insert(123, 4, 25));
+        assert!(tt.insert(123, 4, 15));
         let entry = tt.get(123).unwrap();
+        assert_eq!(entry.moves, 15);
         assert_eq!(entry.pushes, 4);
-        assert_eq!(entry.moves, 25);
     }
 
     #[test]
-    fn same_pushes_fewer_moves_replaces() {
+    fn more_pushes_but_fewer_moves_replaces() {
+        let mut tt = TranspositionTable::new();
+        tt.insert(123, 3, 20);
+        assert!(tt.insert(123, 5, 15));
+        let entry = tt.get(123).unwrap();
+        assert_eq!(entry.moves, 15);
+        assert_eq!(entry.pushes, 5);
+    }
+
+    #[test]
+    fn same_moves_fewer_pushes_replaces() {
         let mut tt = TranspositionTable::new();
         tt.insert(123, 5, 20);
-        assert!(tt.insert(123, 5, 15));
+        assert!(tt.insert(123, 3, 20));
+        let entry = tt.get(123).unwrap();
+        assert_eq!(entry.pushes, 3);
+    }
+
+    #[test]
+    fn worse_moves_does_not_replace() {
+        let mut tt = TranspositionTable::new();
+        tt.insert(123, 5, 15);
+        assert!(!tt.insert(123, 3, 20));
         let entry = tt.get(123).unwrap();
         assert_eq!(entry.moves, 15);
     }

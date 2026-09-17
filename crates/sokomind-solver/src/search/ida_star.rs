@@ -19,9 +19,10 @@ pub enum IDAStarResult {
     BudgetExceeded,
 }
 
-/// Iterative deepening A* search.
+/// Move-optimal iterative deepening A* search.
 /// Memory-efficient alternative to A* for proof mode on larger puzzles.
-/// Uses f-cost threshold that increases each iteration.
+/// g-cost = total moves (walks + pushes). Uses f-cost threshold that
+/// increases each iteration.
 #[allow(clippy::too_many_arguments)]
 pub fn ida_star_search(
     cb: &CompiledBoard,
@@ -33,7 +34,7 @@ pub fn ida_star_search(
     counters: &mut SearchCounters,
     upper_bound: Option<u32>,
 ) -> IDAStarResult {
-    let init_hash = initial.zobrist_hash(zk);
+    let init_hash = initial.zobrist_hash_exact(zk);
     let h = heuristic.evaluate(cb, initial, zk.hash_boxes(&initial.box_cells));
     counters.heuristic_calls += 1;
 
@@ -135,12 +136,13 @@ fn dfs(
             continue;
         }
 
-        let succ_hash = succ.state.zobrist_hash(zk);
+        let succ_hash = succ.state.zobrist_hash_exact(zk);
 
         if path.iter().any(|(_, h)| *h == succ_hash) {
             continue;
         }
 
+        let child_g = g + succ.walk_cost + succ.push_count;
         path.push((succ.state, succ_hash));
         push_path.push((succ.box_index, succ.direction));
 
@@ -153,7 +155,7 @@ fn dfs(
             counters,
             path,
             push_path,
-            g + 1,
+            child_g,
             threshold,
         );
 

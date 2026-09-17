@@ -200,6 +200,7 @@ mod tests {
         let goal_label = cb.goal_cells[0].1;
 
         let state = DenseState {
+            keeper_cell: 0,
             keeper_zone: 0,
             box_cells: vec![(goal_cell, goal_label.0)],
             moves: 0,

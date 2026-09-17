@@ -17,12 +17,14 @@ Three Rust crates: `sokomind-core` (game rules), `sokomind-solver` (algorithms),
 
 ## Solver truth rules
 
-- Discovery is bounded, not optimal.
+- The solver is move-optimal: g-cost = total moves (walks + pushes).
+- Discovery (beam search) is bounded, not optimal.
 - Only a completed exact move proof may set optimality to proven.
-- A timeout is never proof. A push optimum is not a move optimum.
+- A timeout is never proof.
 - Every returned solution must replay through the core game engine.
-- Exact proof must use collision-free state identity including robot position.
-- Proof heuristics must be admissible.
+- Exact proof uses collision-free state identity with exact keeper cell position.
+- Beam search uses keeper zone (canonical minimum cell) for push-oriented transposition.
+- Proof heuristics must be admissible (push-distance assignment is a lower bound on moves).
 - Ordering heuristics may not affect proof f-cost.
 - Incomplete local analysis is not a deadlock.
 

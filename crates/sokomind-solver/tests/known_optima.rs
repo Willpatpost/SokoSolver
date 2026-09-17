@@ -27,6 +27,7 @@ fn make_request(rows: &[&str], mode: SolverMode) -> SolverRequest {
 struct KnownOptimum {
     name: &'static str,
     rows: &'static [&'static str],
+    optimal_moves: u32,
     optimal_pushes: u32,
 }
 
@@ -34,11 +35,13 @@ const KNOWN_OPTIMA: &[KnownOptimum] = &[
     KnownOptimum {
         name: "trivial-1box",
         rows: &["OOOOO", "O  SO", "O XRO", "O   O", "OOOOO"],
+        optimal_moves: 6,
         optimal_pushes: 2,
     },
     KnownOptimum {
         name: "trivial-1box-short",
         rows: &["OOOOO", "OSXRO", "OOOOO"],
+        optimal_moves: 1,
         optimal_pushes: 1,
     },
     KnownOptimum {
@@ -46,6 +49,7 @@ const KNOWN_OPTIMA: &[KnownOptimum] = &[
         rows: &[
             "OOOOOOO", "O S S O", "O     O", "O X X O", "O  R  O", "OOOOOOO",
         ],
+        optimal_moves: 9,
         optimal_pushes: 4,
     },
     KnownOptimum {
@@ -53,11 +57,13 @@ const KNOWN_OPTIMA: &[KnownOptimum] = &[
         rows: &[
             "OOOOOOO", "O a   O", "O AR  O", "O B   O", "O   b O", "OOOOOOO",
         ],
+        optimal_moves: 12,
         optimal_pushes: 4,
     },
     KnownOptimum {
         name: "l-push",
         rows: &["OOOOO", "O  SO", "O X O", "O R O", "OOOOO"],
+        optimal_moves: 4,
         optimal_pushes: 2,
     },
     // ── Medium puzzles (3-5 boxes) ──
@@ -66,6 +72,7 @@ const KNOWN_OPTIMA: &[KnownOptimum] = &[
         rows: &[
             "OOOOOOO", "OSSS  O", "O     O", "OXXX  O", "O  R  O", "O     O", "OOOOOOO",
         ],
+        optimal_moves: 12,
         optimal_pushes: 6,
     },
     KnownOptimum {
@@ -73,6 +80,7 @@ const KNOWN_OPTIMA: &[KnownOptimum] = &[
         rows: &[
             "OOOOOOO", "O SSS O", "O     O", "O     O", "O XXX O", "O  R  O", "O     O", "OOOOOOO",
         ],
+        optimal_moves: 18,
         optimal_pushes: 9,
     },
     KnownOptimum {
@@ -88,6 +96,7 @@ const KNOWN_OPTIMA: &[KnownOptimum] = &[
             "O S   S O",
             "OOOOOOOOO",
         ],
+        optimal_moves: 20,
         optimal_pushes: 8,
     },
     KnownOptimum {
@@ -100,6 +109,7 @@ const KNOWN_OPTIMA: &[KnownOptimum] = &[
             "O       O",
             "OOOOOOOOO",
         ],
+        optimal_moves: 24,
         optimal_pushes: 10,
     },
 ];
@@ -114,12 +124,12 @@ fn known_optima_fast_mode() {
             SolverStatus::Solved => {
                 let sol = result.solution.as_ref().unwrap();
                 assert!(
-                    sol.pushes <= fixture.optimal_pushes * 2,
-                    "{}: fast mode produced {} pushes, expected at most {} (2x optimal {})",
+                    sol.moves <= fixture.optimal_moves * 2,
+                    "{}: fast mode produced {} moves, expected at most {} (2x optimal {})",
                     fixture.name,
-                    sol.pushes,
-                    fixture.optimal_pushes * 2,
-                    fixture.optimal_pushes,
+                    sol.moves,
+                    fixture.optimal_moves * 2,
+                    fixture.optimal_moves,
                 );
                 assert!(
                     sol.final_snapshot.solved,
@@ -141,6 +151,11 @@ fn known_optima_optimal_mode() {
         match &result.status {
             SolverStatus::Solved => {
                 let sol = result.solution.as_ref().unwrap();
+                assert_eq!(
+                    sol.moves, fixture.optimal_moves,
+                    "{}: optimal mode found {} moves, expected exactly {}",
+                    fixture.name, sol.moves, fixture.optimal_moves,
+                );
                 assert_eq!(
                     sol.pushes, fixture.optimal_pushes,
                     "{}: optimal mode found {} pushes, expected exactly {}",

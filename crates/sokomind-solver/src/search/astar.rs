@@ -39,9 +39,10 @@ pub enum AStarResult {
     BudgetExceeded,
 }
 
-/// Push-optimal A* search.
-/// Uses assignment heuristic as admissible lower bound on remaining pushes.
-/// g-cost = pushes so far, h-cost = heuristic estimate.
+/// Move-optimal A* search.
+/// Uses assignment heuristic as admissible lower bound on remaining moves
+/// (each push requires at least one move).
+/// g-cost = total moves so far, h-cost = heuristic estimate.
 pub fn astar_search(
     cb: &CompiledBoard,
     initial: &DenseState,
@@ -83,7 +84,7 @@ fn astar_search_inner(
     counters: &mut SearchCounters,
     quick_deadlock_only: bool,
 ) -> AStarResult {
-    let init_hash = initial.zobrist_hash(zk);
+    let init_hash = initial.zobrist_hash_exact(zk);
     let h = heuristic.evaluate(cb, initial, zk.hash_boxes(&initial.box_cells));
     counters.heuristic_calls += 1;
 
@@ -114,7 +115,7 @@ fn astar_search_inner(
         }
 
         if let Some(entry) = tt.get(node.hash) {
-            if node.g_cost > entry.pushes {
+            if node.g_cost > entry.moves {
                 counters.duplicates += 1;
                 continue;
             }
@@ -154,10 +155,10 @@ fn astar_search_inner(
                 continue;
             }
 
-            let succ_hash = succ.state.zobrist_hash(zk);
-            let g = node.g_cost + 1;
+            let succ_hash = succ.state.zobrist_hash_exact(zk);
+            let g = node.g_cost + succ.walk_cost + succ.push_count;
 
-            if !tt.insert(succ_hash, g, succ.state.moves) {
+            if !tt.insert(succ_hash, succ.state.pushes, g) {
                 counters.transposition_duplicate += 1;
                 continue;
             }

@@ -5,7 +5,7 @@ use crate::compiled_board::{CompiledBoard, INVALID_CELL};
 use crate::counters::SearchCounters;
 use crate::dense_state::DenseState;
 use crate::macros::MacroEngine;
-use crate::reachability::{canonical_keeper, keeper_reachable};
+use crate::reachability::{canonical_keeper, keeper_distance, keeper_reachable};
 
 /// A push successor: moving a box in a direction.
 /// For multi-push sequences, `push_trace` contains all individual pushes.
@@ -15,6 +15,8 @@ pub struct PushSuccessor {
     pub box_index: usize,
     pub direction: Direction,
     pub push_count: u32,
+    /// Walk steps the keeper takes to reach the push-from cell.
+    pub walk_cost: u32,
     /// For push sequences with push_count > 1, this contains each
     /// intermediate (box_index, direction) push in order. Empty for
     /// single-push successors.
@@ -61,19 +63,17 @@ fn generate_successors_inner(
     committed_mask: u64,
 ) -> Vec<PushSuccessor> {
     let mut successors = Vec::new();
-    let reachable = keeper_reachable(cb, state.keeper_zone, &state.box_cells);
+    let reachable = keeper_reachable(cb, state.keeper_cell, &state.box_cells);
 
     let mut tunnel_count = 0u64;
     let mut goal_count = 0u64;
 
     for (bi, &(box_cell, label)) in state.box_cells.iter().enumerate() {
-        // Dynamic goal commitment: skip boxes committed via residual matching.
         if bi < 64 && (committed_mask & (1u64 << bi)) != 0 {
             goal_count += 1;
             continue;
         }
 
-        // Static goal macro: skip boxes committed to safe corner goals.
         if let Some(me) = macros {
             if me.safe_goals.is_committed(cb, box_cell, label) {
                 goal_count += 1;
@@ -112,7 +112,9 @@ fn generate_successors_inner(
                 continue;
             }
 
-            // Tunnel macro: if the target is a tunnel cell, advance to exit.
+            let walk_cost = keeper_distance(cb, state.keeper_cell, push_from, &state.box_cells)
+                .unwrap_or(0);
+
             let (final_target, extra_pushes) = if let Some(me) = macros {
                 match me.tunnels.apply_tunnel(cb, target, dir, &state.box_cells) {
                     Some((exit, extra)) => {
@@ -130,8 +132,6 @@ fn generate_successors_inner(
             new_box_cells.sort();
 
             let keeper_at = if extra_pushes > 0 {
-                // Keeper ends up one cell behind the box in the push direction.
-                // Walk back from final_target in the opposite direction.
                 cb.neighbor(final_target, dir.opposite())
             } else {
                 box_cell
@@ -139,17 +139,20 @@ fn generate_successors_inner(
             let new_keeper_zone = canonical_keeper(cb, keeper_at, &new_box_cells);
 
             let total_pushes = 1 + extra_pushes;
+            let total_move_cost = walk_cost + total_pushes;
 
             successors.push(PushSuccessor {
                 state: DenseState {
+                    keeper_cell: keeper_at,
                     keeper_zone: new_keeper_zone,
                     box_cells: new_box_cells,
-                    moves: state.moves + total_pushes,
+                    moves: state.moves + total_move_cost,
                     pushes: state.pushes + total_pushes,
                 },
                 box_index: bi,
                 direction: dir,
                 push_count: total_pushes,
+                walk_cost,
                 push_trace: Vec::new(),
                 box_target: final_target,
             });
@@ -171,7 +174,7 @@ fn single_box_pushes(
     state: &DenseState,
     box_cell: u16,
 ) -> Vec<(DenseState, u16, Direction)> {
-    let reachable = keeper_reachable(cb, state.keeper_zone, &state.box_cells);
+    let reachable = keeper_reachable(cb, state.keeper_cell, &state.box_cells);
     let bi = match state.box_cells.binary_search_by_key(&box_cell, |&(c, _)| c) {
         Ok(idx) => idx,
         Err(_) => return Vec::new(),
@@ -207,6 +210,9 @@ fn single_box_pushes(
             continue;
         }
 
+        let walk_cost =
+            keeper_distance(cb, state.keeper_cell, push_from, &state.box_cells).unwrap_or(0);
+
         let mut new_box_cells = state.box_cells.clone();
         new_box_cells[bi] = (target, label);
         new_box_cells.sort();
@@ -214,9 +220,10 @@ fn single_box_pushes(
 
         results.push((
             DenseState {
+                keeper_cell: box_cell,
                 keeper_zone: new_keeper_zone,
                 box_cells: new_box_cells,
-                moves: state.moves + 1,
+                moves: state.moves + walk_cost + 1,
                 pushes: state.pushes + 1,
             },
             target,
@@ -278,6 +285,7 @@ pub fn expand_push_sequence(
                 box_index: initial_succ.box_index,
                 direction: s.direction,
                 push_count: s.push_count,
+                walk_cost: initial_succ.walk_cost,
                 push_trace: s.trace.clone(),
                 box_target: s.box_cell,
             });
@@ -294,6 +302,7 @@ pub fn expand_push_sequence(
                 box_index: initial_succ.box_index,
                 direction: s.direction,
                 push_count: s.push_count,
+                walk_cost: initial_succ.walk_cost,
                 push_trace: s.trace.clone(),
                 box_target: s.box_cell,
             });
@@ -321,6 +330,7 @@ pub fn expand_push_sequence(
                     box_index: initial_succ.box_index,
                     direction: next_dir,
                     push_count: current_push_count + 1,
+                    walk_cost: initial_succ.walk_cost,
                     push_trace: trace,
                     box_target: next_box_cell,
                 });
@@ -349,6 +359,7 @@ pub fn expand_push_sequence(
             box_index: initial_succ.box_index,
             direction: s.direction,
             push_count: s.push_count,
+            walk_cost: initial_succ.walk_cost,
             push_trace: s.trace.clone(),
             box_target: s.box_cell,
         });
@@ -540,6 +551,7 @@ mod tests {
         let goal_cell = cb.goal_cells[0].0;
         let goal_label = cb.goal_cells[0].1 .0;
         let state = DenseState {
+            keeper_cell: cb.robot_cell,
             keeper_zone: cb.robot_cell,
             box_cells: vec![(goal_cell, goal_label)],
             moves: 0,

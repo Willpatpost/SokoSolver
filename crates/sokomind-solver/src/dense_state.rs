@@ -2,9 +2,16 @@ use crate::compiled_board::CompiledBoard;
 use crate::reachability::canonical_keeper;
 use crate::zobrist::ZobristKeys;
 
-/// Compact solver state: keeper zone + sorted box positions with labels.
+/// Compact solver state: keeper position + sorted box positions with labels.
+///
+/// `keeper_cell` is the exact keeper position (needed for move-optimal search,
+/// where walk distance to the next push matters).
+///
+/// `keeper_zone` is the canonical minimum cell in the keeper's reachable
+/// region (used for push-oriented discovery and beam search transposition).
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DenseState {
+    pub keeper_cell: u16,
     pub keeper_zone: u16,
     pub box_cells: Vec<(u16, u8)>,
     pub moves: u32,
@@ -20,9 +27,11 @@ impl DenseState {
             .collect();
         box_cells.sort();
 
-        let keeper_zone = canonical_keeper(cb, cb.robot_cell, &box_cells);
+        let keeper_cell = cb.robot_cell;
+        let keeper_zone = canonical_keeper(cb, keeper_cell, &box_cells);
 
         DenseState {
+            keeper_cell,
             keeper_zone,
             box_cells,
             moves: 0,
@@ -30,8 +39,14 @@ impl DenseState {
         }
     }
 
+    /// Zobrist hash using keeper zone (for push-oriented beam search).
     pub fn zobrist_hash(&self, zk: &ZobristKeys) -> u64 {
         zk.hash_state(self.keeper_zone, &self.box_cells)
+    }
+
+    /// Zobrist hash using exact keeper cell (for move-optimal exact search).
+    pub fn zobrist_hash_exact(&self, zk: &ZobristKeys) -> u64 {
+        zk.hash_state(self.keeper_cell, &self.box_cells)
     }
 
     pub fn is_solved(&self, cb: &CompiledBoard) -> bool {
@@ -80,6 +95,7 @@ mod tests {
         let goal_cell = cb.goal_cells[0].0;
         let goal_label = cb.goal_cells[0].1;
         let state = DenseState {
+            keeper_cell: 0,
             keeper_zone: 0,
             box_cells: vec![(goal_cell, goal_label.0)],
             moves: 5,
@@ -105,7 +121,9 @@ mod tests {
         let s1 = DenseState::from_initial(&cb);
 
         let mut s2 = s1.clone();
-        s2.keeper_zone = if s1.keeper_zone == 0 { 1 } else { 0 };
+        let alt_zone = if s1.keeper_zone == 0 { 1 } else { 0 };
+        s2.keeper_cell = alt_zone;
+        s2.keeper_zone = alt_zone;
 
         assert_ne!(s1.zobrist_hash(&zk), s2.zobrist_hash(&zk));
     }

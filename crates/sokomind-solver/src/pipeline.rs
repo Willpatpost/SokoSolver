@@ -330,9 +330,9 @@ pub fn solve_with_progress(
                     );
                     logger.end_phase();
                     let proof = if optimal {
-                        Some(crate::proof::optimal_proof(solution.pushes))
+                        Some(crate::proof::optimal_proof(solution.moves))
                     } else {
-                        Some(crate::proof::bounded_proof(0, solution.pushes))
+                        Some(crate::proof::bounded_proof(0, solution.moves))
                     };
                     SolverResult {
                         status: SolverStatus::Solved,

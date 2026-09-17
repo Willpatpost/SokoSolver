@@ -1070,6 +1070,7 @@ fn select_beam_layer(candidates: &mut Vec<BeamEntry>, width: usize) {
             &mut candidates[idx],
             BeamEntry {
                 state: DenseState {
+                    keeper_cell: 0,
                     keeper_zone: 0,
                     box_cells: Vec::new(),
                     moves: 0,

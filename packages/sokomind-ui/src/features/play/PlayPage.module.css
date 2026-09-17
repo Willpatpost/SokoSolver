@@ -193,6 +193,43 @@
   background: var(--coral-500);
 }
 
+.modeGroup {
+  display: flex;
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.modeButton {
+  padding: 0.35rem 0.6rem;
+  border: none;
+  border-right: 1px solid var(--border-medium);
+  background: var(--paper-50);
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ink-muted);
+  transition: background-color 120ms ease;
+}
+
+.modeButton:last-child {
+  border-right: none;
+}
+
+.modeButton:hover {
+  background: var(--paper-100);
+}
+
+.modeButton[data-active] {
+  background: var(--sage-600);
+  color: var(--paper-50);
+}
+
+.modeButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .solverStatus {
   padding: 0.45rem 1rem;
   border-radius: var(--radius-sm);

@@ -329,7 +329,12 @@ pub fn solve_with_progress(
                         ),
                     );
                     logger.end_phase();
-                    let proof = if optimal {
+                    let can_claim_optimal = optimal
+                        && matches!(
+                            request.options.mode,
+                            SolverMode::Quality | SolverMode::Optimal
+                        );
+                    let proof = if can_claim_optimal {
                         Some(crate::proof::optimal_proof(solution.moves))
                     } else {
                         Some(crate::proof::bounded_proof(0, solution.moves))

@@ -3,7 +3,7 @@ import type { Direction, GameSnapshot, ParsedBoard, PuzzleDefinition } from "../
 import { createSnapshot, parsePuzzle, stepSnapshot } from "../../core/engine.ts";
 import { getOrderedPuzzles } from "../../catalog/puzzles.ts";
 import { SolverWorkerClient } from "../../solver/worker-client.ts";
-import type { LogEntry, SolverResult, SolverPhase } from "../../solver/types.ts";
+import type { LogEntry, SolverResult, SolverPhase, SolverMode } from "../../solver/types.ts";
 import { isSolved as isSolverSolved, isUnsolved } from "../../solver/types.ts";
 import { Board } from "../game/Board.tsx";
 import { SolveLog } from "./SolveLog.tsx";
@@ -104,6 +104,7 @@ export function PlayPage() {
   const [solverProgress, setSolverProgress] = useState<SolverProgress | null>(null);
   const [solverError, setSolverError] = useState<string | null>(null);
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
+  const [solverMode, setSolverMode] = useState<SolverMode>("Fast");
   const [replaying, setReplaying] = useState(false);
   const replayRef = useRef<number | null>(null);
   const replayStepRef = useRef(0);
@@ -178,9 +179,10 @@ export function PlayPage() {
     setLogEntries([]);
     stopReplay();
 
+    const timeLimit = solverMode === "Fast" ? 30_000 : 120_000;
     client.solve(
       [...state.puzzle.rows],
-      { mode: "Fast", max_time_ms: 30_000 },
+      { mode: solverMode, max_time_ms: timeLimit },
       {
         onProgress(update) {
           setSolverProgress({
@@ -209,7 +211,7 @@ export function PlayPage() {
         },
       },
     );
-  }, [state.puzzle, stopReplay]);
+  }, [state.puzzle, solverMode, stopReplay]);
 
   const handleCancel = useCallback(() => {
     workerRef.current?.cancel();
@@ -317,6 +319,20 @@ export function PlayPage() {
               {showHint ? "Hide Hint" : "Hint"}
             </button>
           )}
+
+          <div className={styles.modeGroup}>
+            {(["Fast", "Quality", "Optimal"] as const).map((m) => (
+              <button
+                key={m}
+                className={styles.modeButton}
+                data-active={m === solverMode || undefined}
+                onClick={() => setSolverMode(m)}
+                disabled={solverStatus === "solving" || replaying}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
 
           {solverStatus === "idle" && !state.snapshot.solved && (
             <button

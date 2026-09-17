@@ -31,10 +31,7 @@ pub fn is_pi_corral_deadlock(cb: &CompiledBoard, keeper_pos: u16, box_cells: &[(
             if adj == INVALID_CELL {
                 continue;
             }
-            if box_cells
-                .binary_search_by_key(&adj, |&(c, _)| c)
-                .is_ok()
-            {
+            if box_cells.binary_search_by_key(&adj, |&(c, _)| c).is_ok() {
                 continue;
             }
             if reachable[adj as usize] {
@@ -95,9 +92,7 @@ mod tests {
         // Box at (1,1): adjacent cells are (0,1)=wall, (1,0)=wall,
         // (2,1)=wall, (1,2)=box. Keeper cannot reach any non-box
         // adjacent cell → true pi-corral.
-        let rows = &[
-            "OOOOOO", "OXX  O", "OO S O", "O  R O", "O S  O", "OOOOOO",
-        ];
+        let rows = &["OOOOOO", "OXX  O", "OO S O", "O  R O", "O S  O", "OOOOOO"];
         let board = parse_board(rows).unwrap();
         let cb = CompiledBoard::from_parsed(&board);
 

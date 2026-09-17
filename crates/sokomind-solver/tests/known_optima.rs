@@ -180,6 +180,44 @@ fn known_optima_optimal_mode() {
     }
 }
 
+/// Regression: these puzzles were previously rejected by the pi-corral
+/// detector as unsolvable. Verify they solve in Fast mode.
+#[test]
+fn pi_corral_regression_solvable() {
+    let cases: &[(&str, &[&str])] = &[
+        (
+            "original-spirit",
+            &[
+                "OOOOOOO", "O     O", "O OXO O", "O  X  O", "OO X OO", "O  R  O", "O SSS O",
+                "OOOOOOO",
+            ],
+        ),
+        (
+            "tool-shed",
+            &[
+                "OOOOOOO", "O   R O", "O OXO O", "O X   O", "OSX   O", "OS    O", "OS    O",
+                "OOOOOOO",
+            ],
+        ),
+    ];
+
+    for &(name, rows) in cases {
+        let request = make_request(rows, SolverMode::Fast);
+        let result = solve(&request);
+        assert!(
+            matches!(result.status, SolverStatus::Solved),
+            "{}: expected Solved, got {:?}",
+            name,
+            result.status,
+        );
+        assert!(
+            result.solution.as_ref().unwrap().final_snapshot.solved,
+            "{}: solution did not reach solved state",
+            name,
+        );
+    }
+}
+
 const KNOWN_UNSOLVABLE: &[(&str, &[&str])] = &[(
     "box-against-wall",
     &["OOOOO", "OX  O", "O  SO", "O  RO", "OOOOO"],

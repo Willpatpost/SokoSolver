@@ -4,20 +4,15 @@ use sokomind_core::position::Direction;
 
 /// Pi-corral deadlock detector.
 ///
-/// A pi-corral is a region enclosed by walls and boxes that the keeper
-/// cannot enter. If any box inside such a region is not on a matching
-/// goal, the state is deadlocked — the keeper can never reach a push
-/// position for those boxes.
+/// A pi-corral is a region enclosed by walls that the keeper cannot
+/// enter. If any off-goal box is completely isolated — the keeper
+/// cannot reach ANY adjacent cell — the box can never be pushed and
+/// the state is deadlocked.
 ///
-/// Algorithm:
-/// 1. Compute keeper-reachable cells from `keeper_pos`.
-/// 2. Find all boxes the keeper cannot reach from any adjacent cell.
-/// 3. For each unreachable box not on its matching goal → deadlock.
-///
-/// This is a conservative check: it only fires when a box is completely
-/// enclosed and off-goal. It does not check whether the enclosed boxes
-/// *could* reach goals if they were pushable — that's handled by the
-/// goal commitment detector.
+/// This is conservative: a box blocked only by other movable boxes is
+/// NOT flagged, since those boxes might be pushed out of the way first.
+/// Only boxes where every adjacent cell is either a wall or unreachable
+/// (with no keeper path even ignoring push targets) are detected.
 pub fn is_pi_corral_deadlock(cb: &CompiledBoard, keeper_pos: u16, box_cells: &[(u16, u8)]) -> bool {
     if box_cells.is_empty() || keeper_pos == INVALID_CELL {
         return false;
@@ -30,37 +25,25 @@ pub fn is_pi_corral_deadlock(cb: &CompiledBoard, keeper_pos: u16, box_cells: &[(
             continue;
         }
 
-        // A box is pushable if the keeper can reach at least one push position:
-        // an adjacent cell from which pushing is possible (the opposite side is open).
-        let mut pushable = false;
+        let mut any_adjacent_reachable = false;
         for dir in Direction::ALL {
-            let push_from = cb.neighbor(box_cell, dir.opposite());
-            if push_from == INVALID_CELL {
+            let adj = cb.neighbor(box_cell, dir);
+            if adj == INVALID_CELL {
                 continue;
             }
             if box_cells
-                .binary_search_by_key(&push_from, |&(c, _)| c)
+                .binary_search_by_key(&adj, |&(c, _)| c)
                 .is_ok()
             {
                 continue;
             }
-            if !reachable[push_from as usize] {
-                continue;
+            if reachable[adj as usize] {
+                any_adjacent_reachable = true;
+                break;
             }
-
-            let target = cb.neighbor(box_cell, dir);
-            if target == INVALID_CELL {
-                continue;
-            }
-            if box_cells.binary_search_by_key(&target, |&(c, _)| c).is_ok() {
-                continue;
-            }
-
-            pushable = true;
-            break;
         }
 
-        if !pushable {
+        if !any_adjacent_reachable {
             return true;
         }
     }
@@ -86,15 +69,10 @@ mod tests {
     }
 
     #[test]
-    fn box_trapped_behind_boxes() {
-        // Keeper at bottom, boxes forming a wall the keeper can't get past.
-        // OOOOOOO
-        // O X   O  ← box at (1,2), goal nowhere near it
-        // OXXXO O  ← boxes at (2,1),(2,2),(2,3) block passage
-        // O SSS O
-        // OR  S O
-        // OOOOOOO
-        // 4 boxes, 4 goals. Box at (1,2) trapped behind the row.
+    fn box_behind_boxes_not_pi_corral() {
+        // Box at (1,2) has a keeper-reachable adjacent cell (1,3), so it's
+        // not in a true pi-corral even though it can't be pushed right now.
+        // The goal-commitment detector catches this instead.
         let rows = &[
             "OOOOOOO", "O X   O", "OXXXO O", "O SSS O", "OR  S O", "OOOOOOO",
         ];
@@ -109,9 +87,29 @@ mod tests {
             .collect();
         boxes.sort();
 
-        let result = is_pi_corral_deadlock(&cb, keeper, &boxes);
-        // The trapped box at (1,2) is not on a goal → deadlock
-        assert!(result);
+        assert!(!is_pi_corral_deadlock(&cb, keeper, &boxes));
+    }
+
+    #[test]
+    fn box_fully_enclosed_by_walls_and_boxes() {
+        // Box at (1,1): adjacent cells are (0,1)=wall, (1,0)=wall,
+        // (2,1)=wall, (1,2)=box. Keeper cannot reach any non-box
+        // adjacent cell → true pi-corral.
+        let rows = &[
+            "OOOOOO", "OXX  O", "OO S O", "O  R O", "O S  O", "OOOOOO",
+        ];
+        let board = parse_board(rows).unwrap();
+        let cb = CompiledBoard::from_parsed(&board);
+
+        let keeper = cb.robot_cell;
+        let mut boxes: Vec<(u16, u8)> = cb
+            .initial_box_cells
+            .iter()
+            .map(|&(c, l)| (c, l.0))
+            .collect();
+        boxes.sort();
+
+        assert!(is_pi_corral_deadlock(&cb, keeper, &boxes));
     }
 
     #[test]

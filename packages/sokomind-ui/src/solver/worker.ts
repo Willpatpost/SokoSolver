@@ -38,6 +38,7 @@ function handleSolve(puzzleJson: string, optionsJson: string): void {
             generated_states: update.generated_states,
             best_pushes: update.best_pushes,
             best_moves: update.best_moves,
+            log_entries: update.log_entries ?? [],
           });
         } catch {
           // Progress parse failure is non-fatal

@@ -3,9 +3,10 @@ import type { Direction, GameSnapshot, ParsedBoard, PuzzleDefinition } from "../
 import { createSnapshot, parsePuzzle, stepSnapshot } from "../../core/engine.ts";
 import { getOrderedPuzzles } from "../../catalog/puzzles.ts";
 import { SolverWorkerClient } from "../../solver/worker-client.ts";
-import type { SolverResult, SolverPhase } from "../../solver/types.ts";
+import type { LogEntry, SolverResult, SolverPhase } from "../../solver/types.ts";
 import { isSolved as isSolverSolved, isUnsolved } from "../../solver/types.ts";
 import { Board } from "../game/Board.tsx";
+import { SolveLog } from "./SolveLog.tsx";
 import styles from "./PlayPage.module.css";
 
 interface GameState {
@@ -102,6 +103,7 @@ export function PlayPage() {
   const [solverResult, setSolverResult] = useState<SolverResult | null>(null);
   const [solverProgress, setSolverProgress] = useState<SolverProgress | null>(null);
   const [solverError, setSolverError] = useState<string | null>(null);
+  const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const [replaying, setReplaying] = useState(false);
   const replayRef = useRef<number | null>(null);
   const replayStepRef = useRef(0);
@@ -151,6 +153,7 @@ export function PlayPage() {
     setSolverResult(null);
     setSolverProgress(null);
     setSolverError(null);
+    setLogEntries([]);
     if (replayRef.current !== null) {
       clearInterval(replayRef.current);
       replayRef.current = null;
@@ -172,6 +175,7 @@ export function PlayPage() {
     setSolverResult(null);
     setSolverProgress(null);
     setSolverError(null);
+    setLogEntries([]);
     stopReplay();
 
     client.solve(
@@ -183,6 +187,9 @@ export function PlayPage() {
             phase: update.phase,
             expanded: update.expanded_states,
           });
+          if (update.log_entries.length > 0) {
+            setLogEntries((prev) => [...prev, ...update.log_entries]);
+          }
         },
         onResult(result) {
           setSolverResult(result);
@@ -375,6 +382,13 @@ export function PlayPage() {
             {solverError ?? "Solver error"}
           </div>
         )}
+
+        <SolveLog
+          logEntries={logEntries}
+          solverResult={solverResult}
+          solving={solverStatus === "solving"}
+          puzzleTitle={state.puzzle.title}
+        />
 
         {showHint && state.puzzle.hint && !state.snapshot.solved && (
           <div className={styles.hint}>{state.puzzle.hint}</div>

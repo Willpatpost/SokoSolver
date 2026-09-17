@@ -1,6 +1,6 @@
-import type { SolverPhase } from "./types.ts";
+import type { LogEntry, SolverPhase } from "./types.ts";
 
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 export type WorkerCommand =
   | { type: "Solve"; puzzle_json: string; options_json: string }
@@ -16,6 +16,7 @@ export type WorkerResponse =
       generated_states: number;
       best_pushes: number | null;
       best_moves: number | null;
+      log_entries: LogEntry[];
     }
   | { type: "Result"; result_json: string }
   | { type: "Error"; message: string }

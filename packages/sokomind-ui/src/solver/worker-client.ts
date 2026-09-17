@@ -92,7 +92,7 @@ export class SolverWorkerClient {
           generated_states: payload.generated_states,
           best_pushes: payload.best_pushes,
           best_moves: payload.best_moves,
-          log_entries: [],
+          log_entries: payload.log_entries ?? [],
         });
         break;
 
